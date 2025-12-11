@@ -1,5 +1,16 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { getSubCategoryThunk, createSubCategoryThunk, updateSubCategoryThunk, toggleSubCategoryStatusThunk, deleteSubCategoryThunk, addSubCategoryAssetsThunk, deleteSubCategoryAssetThunk } from "./thunk";
+import {
+  getSubCategoryThunk,
+  createSubCategoryThunk,
+  updateSubCategoryThunk,
+  toggleSubCategoryStatusThunk,
+  deleteSubCategoryThunk,
+  addSubCategoryAssetsThunk,
+  deleteSubCategoryAssetThunk,
+  getSubCategoryAssetsThunk,
+  updateSubCategoryAssetThunk,
+  reorderSubCategoryThunk,
+} from "./thunk";
 
 const initialState = {
   loading: false,
@@ -10,6 +21,9 @@ const initialState = {
   singleData: {} as any,
   message: "",
   error: null as string | null,
+  assets: [] as any[],
+  assetsPagination: {} as any,
+  assetsLoading: false,
 };
 
 const slice = createSlice({
@@ -39,7 +53,9 @@ const slice = createSlice({
     });
     builder.addCase(getSubCategoryThunk.rejected, (state, action) => {
       state.dataLoading = false;
-      state.error = (action.payload as { message?: string })?.message || "Failed to fetch subcategories";
+      state.error =
+        (action.payload as { message?: string })?.message ||
+        "Failed to fetch subcategories";
       state.message = "";
     });
 
@@ -59,7 +75,9 @@ const slice = createSlice({
     });
     builder.addCase(createSubCategoryThunk.rejected, (state, action) => {
       state.loading = false;
-      state.error = (action.payload as { message?: string })?.message || "Failed to create subcategory";
+      state.error =
+        (action.payload as { message?: string })?.message ||
+        "Failed to create subcategory";
       state.message = "";
     });
 
@@ -84,7 +102,9 @@ const slice = createSlice({
     });
     builder.addCase(updateSubCategoryThunk.rejected, (state, action) => {
       state.loading = false;
-      state.error = (action.payload as { message?: string })?.message || "Failed to update subcategory";
+      state.error =
+        (action.payload as { message?: string })?.message ||
+        "Failed to update subcategory";
       state.message = "";
     });
 
@@ -109,7 +129,9 @@ const slice = createSlice({
     });
     builder.addCase(toggleSubCategoryStatusThunk.rejected, (state, action) => {
       state.loading = false;
-      state.error = (action.payload as { message?: string })?.message || "Failed to update subcategory status";
+      state.error =
+        (action.payload as { message?: string })?.message ||
+        "Failed to update subcategory status";
       state.message = "";
     });
 
@@ -131,7 +153,9 @@ const slice = createSlice({
     });
     builder.addCase(deleteSubCategoryThunk.rejected, (state, action) => {
       state.loading = false;
-      state.error = (action.payload as { message?: string })?.message || "Failed to delete subcategory";
+      state.error =
+        (action.payload as { message?: string })?.message ||
+        "Failed to delete subcategory";
       state.message = "";
     });
 
@@ -157,7 +181,9 @@ const slice = createSlice({
     });
     builder.addCase(addSubCategoryAssetsThunk.rejected, (state, action) => {
       state.loading = false;
-      state.error = (action.payload as { message?: string })?.message || "Failed to add images";
+      state.error =
+        (action.payload as { message?: string })?.message ||
+        "Failed to add images";
       state.message = "";
     });
 
@@ -183,12 +209,77 @@ const slice = createSlice({
     });
     builder.addCase(deleteSubCategoryAssetThunk.rejected, (state, action) => {
       state.loading = false;
-      state.error = (action.payload as { message?: string })?.message || "Failed to delete image";
+      state.error =
+        (action.payload as { message?: string })?.message ||
+        "Failed to delete image";
+      state.message = "";
+    });
+
+    // =================================  Get SubCategory Assets ==================================
+    builder.addCase(getSubCategoryAssetsThunk.pending, (state) => {
+      state.assetsLoading = true;
+      state.error = null;
+    });
+    builder.addCase(getSubCategoryAssetsThunk.fulfilled, (state, action) => {
+      state.assetsLoading = false;
+      state.error = null;
+      // API response structure: { data: { asset_images: [...], _id, subcategoryTitle }, pagination: {...} }
+      state.assets =
+        action.payload.data?.asset_images || action.payload.asset_images || [];
+      state.assetsPagination = action.payload.pagination || {};
+    });
+    builder.addCase(getSubCategoryAssetsThunk.rejected, (state, action) => {
+      state.assetsLoading = false;
+      state.error =
+        (action.payload as { message?: string })?.message ||
+        "Failed to fetch assets";
+    });
+
+    // =================================  Update SubCategory Asset ==================================
+    builder.addCase(updateSubCategoryAssetThunk.pending, (state) => {
+      state.loading = true;
+      state.message = "";
+      state.error = null;
+    });
+    builder.addCase(updateSubCategoryAssetThunk.fulfilled, (state, action) => {
+      state.loading = false;
+      state.message = action.payload.message || "";
+      state.error = null;
+      // Update the asset in the assets array - refresh from updated data
+      if (action.payload.data?.asset_images) {
+        state.assets = action.payload.data.asset_images;
+      }
+    });
+    builder.addCase(updateSubCategoryAssetThunk.rejected, (state, action) => {
+      state.loading = false;
+      state.error =
+        (action.payload as { message?: string })?.message ||
+        "Failed to update asset";
+      state.message = "";
+    });
+
+    // =================================  Reorder SubCategory ==================================
+    builder.addCase(reorderSubCategoryThunk.pending, (state) => {
+      state.loading = true;
+      state.message = "";
+      state.error = null;
+    });
+    builder.addCase(reorderSubCategoryThunk.fulfilled, (state, action) => {
+      state.loading = false;
+      state.message = action.payload.message || "";
+      state.error = null;
+      // Refresh data after reorder
+    });
+    builder.addCase(reorderSubCategoryThunk.rejected, (state, action) => {
+      state.loading = false;
+      state.error =
+        (action.payload as { message?: string })?.message ||
+        "Failed to reorder subcategories";
       state.message = "";
     });
   },
 });
 
-export const { clearSubCategorySingleData, clearSubCategoryData } = slice.actions;
+export const { clearSubCategorySingleData, clearSubCategoryData } =
+  slice.actions;
 export default slice.reducer;
-

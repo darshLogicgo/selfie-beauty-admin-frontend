@@ -27,6 +27,9 @@ export const SUB_CATEGORY_API = {
   ASSETS: API + "/subcategory",
   DELETE_ASSET: API + "/subcategory",
   TOGGLE_PREMIUM: API + "/subcategory",
+  GET_ASSETS: API + "/subcategory", // Will append /:id/assets
+  UPDATE_ASSET: API + "/subcategory", // Will append /:id/assets/premium
+  REORDER: API + "/subcategory/update-order",
 };
 
 // Home Settings APIs
@@ -44,6 +47,7 @@ export const AI_PHOTO_API = {
   UPDATE: API + "/ai-photo",
   DELETE: API + "/ai-photo",
   TOGGLE: API + "/aiphoto",
+  REORDER: API + "/aiphoto/reorder",
 };
 
 // Trending APIs
@@ -76,5 +80,11 @@ export const HOME_API = {
   GET: API + "/home/sections/all",
   TOGGLE_CATEGORY: API + "/home/categories/toggle",
   TOGGLE_SUBCATEGORY: API + "/home/subcategories/toggle",
+  REORDER_SECTION1: API + "/home/section1/reorder",
+  REORDER_SECTION2: API + "/home/section2/reorder",
+  REORDER_SECTION3: API + "/home/section3/reorder",
+  REORDER_SECTION4: API + "/home/section4/reorder",
+  REORDER_SECTION5: API + "/home/section5/reorder",
+  REORDER_SECTION6: API + "/home/section6/reorder",
+  REORDER_SECTION7: API + "/home/section7/reorder",
 };
-

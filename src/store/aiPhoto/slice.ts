@@ -1,5 +1,9 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { getAIPhotoThunk, toggleAIPhotoIsAiWorldThunk } from "./thunk";
+import {
+  getAIPhotoThunk,
+  toggleAIPhotoIsAiWorldThunk,
+  reorderAIPhotoThunk,
+} from "./thunk";
 
 const initialState = {
   loading: false,
@@ -35,11 +39,13 @@ const slice = createSlice({
     });
     builder.addCase(getAIPhotoThunk.rejected, (state, action) => {
       state.dataLoading = false;
-      state.error = (action.payload as { message?: string })?.message || "Failed to fetch AI Photo data";
+      state.error =
+        (action.payload as { message?: string })?.message ||
+        "Failed to fetch AI Photo data";
       state.message = "";
     });
 
-    // =================================  Toggle AI Photo isAiWorld ==================================
+    // =================================  Toggle AI Photo isAiPhoto ==================================
     builder.addCase(toggleAIPhotoIsAiWorldThunk.pending, (state, action) => {
       state.loading = true;
       const id = action.meta.arg.id;
@@ -50,19 +56,44 @@ const slice = createSlice({
     builder.addCase(toggleAIPhotoIsAiWorldThunk.fulfilled, (state, action) => {
       state.loading = false;
       const id = action.meta.arg.id;
-      state.updatingIds = state.updatingIds.filter(updatingId => updatingId !== id);
+      state.updatingIds = state.updatingIds.filter(
+        (updatingId) => updatingId !== id
+      );
       state.message = action.payload?.message || "";
       // Update the item in the data array
       const item = state.data.find((item) => item._id === id);
       if (item) {
-        item.isAiWorld = action.meta.arg.isAiWorld;
+        item.isAiPhoto = action.meta.arg.isAiPhoto;
       }
     });
     builder.addCase(toggleAIPhotoIsAiWorldThunk.rejected, (state, action) => {
       state.loading = false;
       const id = action.meta.arg.id;
-      state.updatingIds = state.updatingIds.filter(updatingId => updatingId !== id);
-      state.error = (action.payload as { message?: string })?.message || "Failed to update AI Photo status";
+      state.updatingIds = state.updatingIds.filter(
+        (updatingId) => updatingId !== id
+      );
+      state.error =
+        (action.payload as { message?: string })?.message ||
+        "Failed to update AI Photo status";
+      state.message = "";
+    });
+
+    // =================================  Reorder AI Photo ==================================
+    builder.addCase(reorderAIPhotoThunk.pending, (state) => {
+      state.loading = true;
+      state.message = "";
+      state.error = null;
+    });
+    builder.addCase(reorderAIPhotoThunk.fulfilled, (state, action) => {
+      state.loading = false;
+      state.message = action.payload?.message || "";
+      state.error = null;
+    });
+    builder.addCase(reorderAIPhotoThunk.rejected, (state, action) => {
+      state.loading = false;
+      state.error =
+        (action.payload as { message?: string })?.message ||
+        "Failed to reorder AI Photo subcategories";
       state.message = "";
     });
   },
@@ -70,4 +101,3 @@ const slice = createSlice({
 
 export const { clearAIPhotoData } = slice.actions;
 export default slice.reducer;
-

@@ -33,7 +33,9 @@ export const toggleCategoryStatus = (id: string, status: boolean) => {
   return api.patch(`${url.CATEGORY_API.BASE}/${id}/status`, { status });
 };
 
-export const reorderCategory = (data: { categories: Array<{ _id: string; order: number }> }) => {
+export const reorderCategory = (data: {
+  categories: Array<{ _id: string; order: number }>;
+}) => {
   return api.patch(url.CATEGORY_API.REORDER, data);
 };
 
@@ -51,8 +53,11 @@ export const toggleCategoryPremium = (id: string) => {
 export const getTrending = () => {
   return api.get(url.TRENDING_API.BASE);
 };
-  
-export const updateTrendingStatus = (id: string, data: { isTrending: boolean }) => {
+
+export const updateTrendingStatus = (
+  id: string,
+  data: { isTrending: boolean }
+) => {
   return api.patch(`${url.TRENDING_API.UPDATE_STATUS}/${id}`, data);
 };
 
@@ -94,12 +99,49 @@ export const addSubCategoryAssets = (id: string, data: FormData) => {
   return api.post(`${url.SUB_CATEGORY_API.ASSETS}/${id}/assets`, data);
 };
 
-export const deleteSubCategoryAsset = (id: string, imageUrl: string) => {
-  return api.remove(`${url.SUB_CATEGORY_API.DELETE_ASSET}/${id}/assets/delete`, { url: imageUrl });
+export const deleteSubCategoryAsset = (id: string, assetIdOrUrl: string) => {
+  // Backend accepts either assetId or url in body
+  // If it's a valid ObjectId format, send as assetId, otherwise as url
+  const isObjectId = /^[0-9a-fA-F]{24}$/.test(assetIdOrUrl);
+  return api.remove(
+    `${url.SUB_CATEGORY_API.DELETE_ASSET}/${id}/assets/delete`,
+    isObjectId ? { assetId: assetIdOrUrl } : { url: assetIdOrUrl }
+  );
 };
 
 export const toggleSubCategoryPremium = (id: string) => {
   return api.patch(`${url.SUB_CATEGORY_API.TOGGLE_PREMIUM}/${id}/premium`);
+};
+
+export const reorderSubCategory = (
+  data: Array<{ id: string; order: number }>
+) => {
+  return api.patch(url.SUB_CATEGORY_API.REORDER, data);
+};
+
+export const getSubCategoryAssets = (
+  id: string,
+  queryParams?: Record<string, any>
+) => {
+  return api.get(
+    `${url.SUB_CATEGORY_API.GET_ASSETS}/${id}/assets`,
+    queryParams
+  );
+};
+
+export const updateSubCategoryAsset = (
+  id: string,
+  data: {
+    assetId?: string;
+    url?: string;
+    isPremium?: boolean;
+    imageCount?: number;
+  }
+) => {
+  return api.patch(
+    `${url.SUB_CATEGORY_API.UPDATE_ASSET}/${id}/assets/premium`,
+    data
+  );
 };
 
 // ============================================
@@ -109,12 +151,58 @@ export const getHome = () => {
   return api.get(url.HOME_API.GET);
 };
 
-export const toggleHomeCategorySection = (data: { categories: Array<{ _id: string; [key: string]: any }> }) => {
+export const toggleHomeCategorySection = (data: {
+  categories: Array<{ _id: string; [key: string]: any }>;
+}) => {
   return api.patch(url.HOME_API.TOGGLE_CATEGORY, data);
 };
 
-export const toggleHomeSubcategorySection = (data: { subcategories: Array<{ _id: string; [key: string]: any }> }) => {
+export const toggleHomeSubcategorySection = (data: {
+  subcategories: Array<{ _id: string; [key: string]: any }>;
+}) => {
   return api.patch(url.HOME_API.TOGGLE_SUBCATEGORY, data);
+};
+
+export const reorderHomeSection1 = (data: {
+  categories: Array<{ _id: string; section1Order: number }>;
+}) => {
+  return api.patch(url.HOME_API.REORDER_SECTION1, data);
+};
+
+export const reorderHomeSection2 = (data: {
+  categories: Array<{ _id: string; section2Order: number }>;
+}) => {
+  return api.patch(url.HOME_API.REORDER_SECTION2, data);
+};
+
+export const reorderHomeSection3 = (data: {
+  subcategories: Array<{ _id: string; section3Order: number }>;
+}) => {
+  return api.patch(url.HOME_API.REORDER_SECTION3, data);
+};
+
+export const reorderHomeSection4 = (data: {
+  subcategories: Array<{ _id: string; section4Order: number }>;
+}) => {
+  return api.patch(url.HOME_API.REORDER_SECTION4, data);
+};
+
+export const reorderHomeSection5 = (data: {
+  subcategories: Array<{ _id: string; section5Order: number }>;
+}) => {
+  return api.patch(url.HOME_API.REORDER_SECTION5, data);
+};
+
+export const reorderHomeSection6 = (data: {
+  categories: Array<{ _id: string; section6Order: number }>;
+}) => {
+  return api.patch(url.HOME_API.REORDER_SECTION6, data);
+};
+
+export const reorderHomeSection7 = (data: {
+  categories: Array<{ _id: string; section7Order: number }>;
+}) => {
+  return api.patch(url.HOME_API.REORDER_SECTION7, data);
 };
 
 // ============================================
@@ -124,6 +212,15 @@ export const getAIPhoto = (queryParams?: Record<string, any>) => {
   return api.get(url.AI_PHOTO_API.BASE, queryParams);
 };
 
-export const toggleAIPhotoIsAiWorld = (id: string, data: { isAiWorld: boolean }) => {
+export const toggleAIPhotoIsAiWorld = (
+  id: string,
+  data: { isAiPhoto: boolean }
+) => {
   return api.patch(`${url.AI_PHOTO_API.TOGGLE}/${id}/toggle`, data);
+};
+
+export const reorderAIPhoto = (
+  data: Array<{ id: string; aiPhotoOrder: number }>
+) => {
+  return api.patch(url.AI_PHOTO_API.REORDER, data);
 };
