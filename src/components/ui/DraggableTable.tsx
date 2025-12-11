@@ -64,7 +64,7 @@ function DraggableTable<T extends { id: number }>({
             {columns.map((column) => (
               <th
                 key={column.key}
-                className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+                className="px-4 py-3 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider"
                 style={{ width: column.width }}
               >
                 {column.header}
@@ -93,8 +93,10 @@ function DraggableTable<T extends { id: number }>({
                 </td>
               )}
               {columns.map((column) => (
-                <td key={column.key} className="px-4 py-3 text-sm text-foreground">
-                  {column.render ? column.render(item, index) : (item as any)[column.key]}
+                <td key={column.key} className="px-4 py-3 text-sm text-foreground text-center">
+                  <div className="flex items-center justify-center">
+                    {column.render ? column.render(item, index) : (item as any)[column.key]}
+                  </div>
                 </td>
               ))}
             </tr>

@@ -1,47 +1,378 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import SelectableList from '@/components/ui/SelectableList';
-import { mockCategories, mockSubCategories } from '@/data/mockData';
-import { useToast } from '@/hooks/use-toast';
+import toast from 'react-hot-toast';
 import { Save } from 'lucide-react';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { getHomeDataThunk, toggleHomeCategorySectionThunk, toggleHomeSubcategorySectionThunk } from '@/store/homeSettings/thunk';
+import { updateSectionItem } from '@/store/homeSettings/slice';
 
 const HomeSettings: React.FC = () => {
-  const { toast } = useToast();
-  
-  // Section 1 - Categories with multi-select and drag
-  const [section1Selection, setSection1Selection] = useState<number[]>([1, 2]);
-  
-  // Section 2 - Categories with multi-select and drag
-  const [section2Selection, setSection2Selection] = useState<number[]>([3, 4]);
-  
-  // Section 3 - Subcategories with multi-select and drag
-  const [section3Selection, setSection3Selection] = useState<number[]>([1, 2]);
-  
-  // Section 4 - Subcategories with single select, no drag
-  const [section4Selection, setSection4Selection] = useState<number[]>([1]);
-  
-  // Section 5 - Subcategories with single select, no drag
-  const [section5Selection, setSection5Selection] = useState<number[]>([2]);
-  
-  // Section 6 - Categories with title, multi-select and drag
-  const [section6Title, setSection6Title] = useState('Featured Filters');
-  const [section6Selection, setSection6Selection] = useState<number[]>([1, 5]);
-  
-  // Section 7 - Categories with title, multi-select and drag
-  const [section7Title, setSection7Title] = useState('Popular Effects');
-  const [section7Selection, setSection7Selection] = useState<number[]>([2, 6]);
+  const dispatch = useAppDispatch();
+  const { loading, data, error, updatingIds } = useAppSelector((state) => state.HomeSettings);
+
+  // Fetch home data on component mount
+  useEffect(() => {
+    dispatch(getHomeDataThunk());
+  }, [dispatch]);
 
   const handleSave = () => {
-    toast({
-      title: 'Settings saved',
-      description: 'Home page configuration has been updated.',
-    });
+    toast.success('Settings saved! Home page configuration has been updated.');
   };
 
-  const categories = mockCategories.map(c => ({ id: c.id, name: c.name, image: c.image }));
-  const subCategories = mockSubCategories.map(s => ({ id: s.id, name: s.name, image: s.image }));
+  // Get all unique categories for section1 and section2 (combine all from section1, section2, section6, section7)
+  const allCategories = useMemo(() => {
+    const categoryMap = new Map();
+    
+    // Add from section1
+    data.section1?.forEach((item: any) => {
+      if (!categoryMap.has(item._id)) {
+        categoryMap.set(item._id, item);
+      }
+    });
+    
+    // Add from section2
+    data.section2?.forEach((item: any) => {
+      if (!categoryMap.has(item._id)) {
+        categoryMap.set(item._id, item);
+      }
+    });
+    
+    // Add from section6
+    data.section6?.categories?.forEach((item: any) => {
+      if (!categoryMap.has(item._id)) {
+        categoryMap.set(item._id, item);
+      }
+    });
+    
+    // Add from section7
+    data.section7?.categories?.forEach((item: any) => {
+      if (!categoryMap.has(item._id)) {
+        categoryMap.set(item._id, item);
+      }
+    });
+    
+    return Array.from(categoryMap.values());
+  }, [data]);
+
+  // Get all unique subcategories for section3, section4, section5
+  const allSubcategories = useMemo(() => {
+    const subcategoryMap = new Map();
+    
+    // Add from section3
+    data.section3?.forEach((item: any) => {
+      if (!subcategoryMap.has(item._id)) {
+        subcategoryMap.set(item._id, item);
+      }
+    });
+    
+    // Add from section4
+    data.section4?.forEach((item: any) => {
+      if (!subcategoryMap.has(item._id)) {
+        subcategoryMap.set(item._id, item);
+      }
+    });
+    
+    // Add from section5
+    data.section5?.forEach((item: any) => {
+      if (!subcategoryMap.has(item._id)) {
+        subcategoryMap.set(item._id, item);
+      }
+    });
+    
+    return Array.from(subcategoryMap.values());
+  }, [data]);
+
+  // Section 1 - Use direct section1 data from API to maintain order
+  const section1Items = (data.section1 || []).map((item: any) => ({
+    id: item._id,
+    name: item.name || '',
+    image: item.img_sqr || item.img_rec || item.video_sqr || '',
+  }));
+  const section1Selection = (data.section1 || [])
+    .filter((item: any) => item.isSection1 === true)
+    .map((item: any) => item._id);
+
+  // Section 2 - Use direct section2 data from API to maintain order
+  const section2Items = (data.section2 || []).map((item: any) => ({
+    id: item._id,
+    name: item.name || '',
+    image: item.img_sqr || item.img_rec || item.video_sqr || '',
+  }));
+  const section2Selection = (data.section2 || [])
+    .filter((item: any) => item.isSection2 === true)
+    .map((item: any) => item._id);
+
+  // Section 3 - Use direct section3 data from API to maintain order
+  const section3Items = (data.section3 || []).map((item: any) => ({
+    id: item._id,
+    name: item.subcategoryTitle || item.name || '',
+    image: item.img_sqr || item.img_rec || item.video_sqr || '',
+  }));
+  const section3Selection = (data.section3 || [])
+    .filter((item: any) => item.isSection3 === true)
+    .map((item: any) => item._id);
+
+  // Section 4 - Use direct section4 data from API to maintain order (single selection)
+  const section4Items = (data.section4 || []).map((item: any) => ({
+    id: item._id,
+    name: item.subcategoryTitle || item.name || '',
+    image: item.img_sqr || item.img_rec || item.video_sqr || '',
+  }));
+  const section4Selection = (data.section4 || [])
+    .filter((item: any) => item.isSection4 === true)
+    .map((item: any) => item._id)
+    .slice(0, 1); // Only first one for single selection
+
+  // Section 5 - Use direct section5 data from API to maintain order (single selection)
+  const section5Items = (data.section5 || []).map((item: any) => ({
+    id: item._id,
+    name: item.subcategoryTitle || item.name || '',
+    image: item.img_sqr || item.img_rec || item.video_sqr || '',
+  }));
+  const section5Selection = (data.section5 || [])
+    .filter((item: any) => item.isSection5 === true)
+    .map((item: any) => item._id)
+    .slice(0, 1); // Only first one for single selection
+
+  // Section 6 - Use direct section6.categories data from API to maintain order
+  const section6Items = (data.section6?.categories || []).map((item: any) => ({
+    id: item._id,
+    name: item.name || '',
+    image: item.img_sqr || item.img_rec || item.video_sqr || '',
+  }));
+  const section6Selection = (data.section6?.categories || [])
+    .filter((item: any) => item.isSection6 === true)
+    .map((item: any) => item._id);
+
+  // Section 7 - Use direct section7.categories data from API to maintain order
+  const section7Items = (data.section7?.categories || []).map((item: any) => ({
+    id: item._id,
+    name: item.name || '',
+    image: item.img_sqr || item.img_rec || item.video_sqr || '',
+  }));
+  const section7Selection = (data.section7?.categories || [])
+    .filter((item: any) => item.isSection7 === true)
+    .map((item: any) => item._id);
+
+  // Handle selection changes for each section
+  const handleSection1Change = async (ids: (number | string)[]) => {
+    const changedItems: Array<{ _id: string; isSection1: boolean }> = [];
+    
+    allCategories.forEach((item: any) => {
+      const isSelected = ids.includes(item._id);
+      if (item.isSection1 !== isSelected) {
+        dispatch(updateSectionItem({ id: item._id, section: 'section1', value: isSelected }));
+        changedItems.push({
+          _id: item._id,
+          isSection1: isSelected,
+        });
+      }
+    });
+
+    // Call API for changed items
+    if (changedItems.length > 0) {
+      try {
+        await dispatch(toggleHomeCategorySectionThunk({ categories: changedItems })).unwrap();
+        // Refresh data after successful update
+        dispatch(getHomeDataThunk());
+      } catch (error) {
+        // Error is already handled by the thunk
+      }
+    }
+  };
+
+  const handleSection2Change = async (ids: (number | string)[]) => {
+    const changedItems: Array<{ _id: string; isSection2: boolean }> = [];
+    
+    allCategories.forEach((item: any) => {
+      const isSelected = ids.includes(item._id);
+      if (item.isSection2 !== isSelected) {
+        dispatch(updateSectionItem({ id: item._id, section: 'section2', value: isSelected }));
+        changedItems.push({
+          _id: item._id,
+          isSection2: isSelected,
+        });
+      }
+    });
+
+    // Call API for changed items
+    if (changedItems.length > 0) {
+      try {
+        await dispatch(toggleHomeCategorySectionThunk({ categories: changedItems })).unwrap();
+        // Refresh data after successful update
+        // dispatch(getHomeDataThunk());
+      } catch (error) {
+        // Error is already handled by the thunk
+      }
+    }
+  };
+
+  const handleSection3Change = async (ids: (number | string)[]) => {
+    const changedSubcategoriesMap = new Map<string, { _id: string; isSection3?: boolean; isSection4?: boolean; isSection5?: boolean }>();
+    
+    allSubcategories.forEach((item: any) => {
+      const isSelected = ids.includes(item._id);
+      if (item.isSection3 !== isSelected) {
+        dispatch(updateSectionItem({ id: item._id, section: 'section3', value: isSelected }));
+        
+        // Add or update in map
+        if (!changedSubcategoriesMap.has(item._id)) {
+          changedSubcategoriesMap.set(item._id, { _id: item._id });
+        }
+        changedSubcategoriesMap.get(item._id)!.isSection3 = isSelected;
+      }
+    });
+
+    // Call API for changed items
+    if (changedSubcategoriesMap.size > 0) {
+      try {
+        await dispatch(toggleHomeSubcategorySectionThunk({ 
+          subcategories: Array.from(changedSubcategoriesMap.values()) 
+        })).unwrap();
+        // Refresh data after successful update
+        // dispatch(getHomeDataThunk());
+      } catch (error) {
+        // Error is already handled by the thunk
+      }
+    }
+  };
+
+  const handleSection4Change = async (ids: (number | string)[]) => {
+    const changedSubcategoriesMap = new Map<string, { _id: string; isSection3?: boolean; isSection4?: boolean; isSection5?: boolean }>();
+    
+    // For single selection, unselect all first, then select the new one
+    allSubcategories.forEach((item: any) => {
+      const isSelected = ids.includes(item._id);
+      if (item.isSection4 !== isSelected) {
+        dispatch(updateSectionItem({ id: item._id, section: 'section4', value: isSelected }));
+        
+        // Add or update in map
+        if (!changedSubcategoriesMap.has(item._id)) {
+          changedSubcategoriesMap.set(item._id, { _id: item._id });
+        }
+        changedSubcategoriesMap.get(item._id)!.isSection4 = isSelected;
+      }
+    });
+
+    // Call API for changed items
+    if (changedSubcategoriesMap.size > 0) {
+      try {
+        await dispatch(toggleHomeSubcategorySectionThunk({ 
+          subcategories: Array.from(changedSubcategoriesMap.values()) 
+        })).unwrap();
+        // Refresh data after successful update
+        // dispatch(getHomeDataThunk());
+      } catch (error) {
+        // Error is already handled by the thunk
+      }
+    }
+  };
+
+  const handleSection5Change = async (ids: (number | string)[]) => {
+    const changedSubcategoriesMap = new Map<string, { _id: string; isSection3?: boolean; isSection4?: boolean; isSection5?: boolean }>();
+    
+    // For single selection, unselect all first, then select the new one
+    allSubcategories.forEach((item: any) => {
+      const isSelected = ids.includes(item._id);
+      if (item.isSection5 !== isSelected) {
+        dispatch(updateSectionItem({ id: item._id, section: 'section5', value: isSelected }));
+        
+        // Add or update in map
+        if (!changedSubcategoriesMap.has(item._id)) {
+          changedSubcategoriesMap.set(item._id, { _id: item._id });
+        }
+        changedSubcategoriesMap.get(item._id)!.isSection5 = isSelected;
+      }
+    });
+
+    // Call API for changed items
+    if (changedSubcategoriesMap.size > 0) {
+      try {
+        await dispatch(toggleHomeSubcategorySectionThunk({ 
+          subcategories: Array.from(changedSubcategoriesMap.values()) 
+        })).unwrap();
+        // Refresh data after successful update
+        // dispatch(getHomeDataThunk());
+      } catch (error) {
+        // Error is already handled by the thunk
+      }
+    }
+  };
+
+  const handleSection6Change = async (ids: (number | string)[]) => {
+    const changedItems: Array<{ _id: string; isSection6: boolean }> = [];
+    
+    allCategories.forEach((item: any) => {
+      const isSelected = ids.includes(item._id);
+      if (item.isSection6 !== isSelected) {
+        dispatch(updateSectionItem({ id: item._id, section: 'section6', value: isSelected }));
+        changedItems.push({
+          _id: item._id,
+          isSection6: isSelected,
+        });
+      }
+    });
+
+    // Call API for changed items
+    if (changedItems.length > 0) {
+      try {
+        await dispatch(toggleHomeCategorySectionThunk({ categories: changedItems })).unwrap();
+        // Refresh data after successful update
+        dispatch(getHomeDataThunk());
+      } catch (error) {
+        // Error is already handled by the thunk
+      }
+    }
+  };
+
+  const handleSection7Change = async (ids: (number | string)[]) => {
+    const changedItems: Array<{ _id: string; isSection7: boolean }> = [];
+    
+    allCategories.forEach((item: any) => {
+      const isSelected = ids.includes(item._id);
+      if (item.isSection7 !== isSelected) {
+        dispatch(updateSectionItem({ id: item._id, section: 'section7', value: isSelected }));
+        changedItems.push({
+          _id: item._id,
+          isSection7: isSelected,
+        });
+      }
+    });
+
+    // Call API for changed items
+    if (changedItems.length > 0) {
+      try {
+        await dispatch(toggleHomeCategorySectionThunk({ categories: changedItems })).unwrap();
+        // Refresh data after successful update
+        dispatch(getHomeDataThunk());
+      } catch (error) {
+        // Error is already handled by the thunk
+      }
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="animate-fade-in">
+        <div className="flex items-center justify-center py-12">
+          <p className="text-muted-foreground">Loading home data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="animate-fade-in">
+        <div className="flex items-center justify-center py-12">
+          <p className="text-destructive">Error: {error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">
@@ -59,11 +390,12 @@ const HomeSettings: React.FC = () => {
           <h2 className="text-lg font-semibold text-foreground mb-4">Section 1 - Featured Categories</h2>
           <p className="text-sm text-muted-foreground mb-4">Select multiple categories. Drag to reorder.</p>
           <SelectableList
-            items={categories}
+            items={section1Items}
             selectedIds={section1Selection}
-            onSelectionChange={setSection1Selection}
+            onSelectionChange={handleSection1Change}
             multiSelect={true}
             draggable={true}
+            updatingIds={new Set(updatingIds)}
           />
         </div>
 
@@ -72,11 +404,12 @@ const HomeSettings: React.FC = () => {
           <h2 className="text-lg font-semibold text-foreground mb-4">Section 2 - Category Showcase</h2>
           <p className="text-sm text-muted-foreground mb-4">Select multiple categories. Drag to reorder.</p>
           <SelectableList
-            items={categories}
+            items={section2Items}
             selectedIds={section2Selection}
-            onSelectionChange={setSection2Selection}
+            onSelectionChange={handleSection2Change}
             multiSelect={true}
             draggable={true}
+            updatingIds={new Set(updatingIds)}
           />
         </div>
 
@@ -85,11 +418,12 @@ const HomeSettings: React.FC = () => {
           <h2 className="text-lg font-semibold text-foreground mb-4">Section 3 - Subcategory Grid</h2>
           <p className="text-sm text-muted-foreground mb-4">Select multiple subcategories. Drag to reorder.</p>
           <SelectableList
-            items={subCategories}
+            items={section3Items}
             selectedIds={section3Selection}
-            onSelectionChange={setSection3Selection}
+            onSelectionChange={handleSection3Change}
             multiSelect={true}
             draggable={true}
+            updatingIds={new Set(updatingIds)}
           />
         </div>
 
@@ -98,11 +432,12 @@ const HomeSettings: React.FC = () => {
           <h2 className="text-lg font-semibold text-foreground mb-4">Section 4 - Featured Subcategory</h2>
           <p className="text-sm text-muted-foreground mb-4">Select a single subcategory.</p>
           <SelectableList
-            items={subCategories}
+            items={section4Items}
             selectedIds={section4Selection}
-            onSelectionChange={setSection4Selection}
+            onSelectionChange={handleSection4Change}
             multiSelect={false}
             draggable={false}
+            updatingIds={new Set(updatingIds)}
           />
         </div>
 
@@ -111,11 +446,12 @@ const HomeSettings: React.FC = () => {
           <h2 className="text-lg font-semibold text-foreground mb-4">Section 5 - Highlighted Subcategory</h2>
           <p className="text-sm text-muted-foreground mb-4">Select a single subcategory.</p>
           <SelectableList
-            items={subCategories}
+            items={section5Items}
             selectedIds={section5Selection}
-            onSelectionChange={setSection5Selection}
+            onSelectionChange={handleSection5Change}
             multiSelect={false}
             draggable={false}
+            updatingIds={new Set(updatingIds)}
           />
         </div>
 
@@ -127,18 +463,19 @@ const HomeSettings: React.FC = () => {
             <Label htmlFor="section6Title">Section Title</Label>
             <Input
               id="section6Title"
-              value={section6Title}
-              onChange={(e) => setSection6Title(e.target.value)}
+              value={data.section6.title || ''}
+              readOnly
               placeholder="Enter section title"
               className="max-w-md mt-1"
             />
           </div>
           <SelectableList
-            items={categories}
+            items={section6Items}
             selectedIds={section6Selection}
-            onSelectionChange={setSection6Selection}
+            onSelectionChange={handleSection6Change}
             multiSelect={true}
             draggable={true}
+            updatingIds={new Set(updatingIds)}
           />
         </div>
 
@@ -150,18 +487,19 @@ const HomeSettings: React.FC = () => {
             <Label htmlFor="section7Title">Section Title</Label>
             <Input
               id="section7Title"
-              value={section7Title}
-              onChange={(e) => setSection7Title(e.target.value)}
+              value={data.section7.title || ''}
+              readOnly
               placeholder="Enter section title"
               className="max-w-md mt-1"
             />
           </div>
           <SelectableList
-            items={categories}
+            items={section7Items}
             selectedIds={section7Selection}
-            onSelectionChange={setSection7Selection}
+            onSelectionChange={handleSection7Change}
             multiSelect={true}
             draggable={true}
+            updatingIds={new Set(updatingIds)}
           />
         </div>
       </div>

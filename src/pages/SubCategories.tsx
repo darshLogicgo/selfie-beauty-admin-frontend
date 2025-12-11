@@ -1,128 +1,520 @@
-import React, { useState } from 'react';
-import { Plus, Pencil, Trash2, Images, X, Upload } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, Pencil, Trash2, Images, X, Upload, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import DraggableTable from '@/components/ui/DraggableTable';
-import { mockSubCategories, SubCategory } from '@/data/mockData';
-import { useToast } from '@/hooks/use-toast';
+import { SubCategory } from '@/data/mockData';
+import toast from 'react-hot-toast';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { getSubCategoryThunk, createSubCategoryThunk, updateSubCategoryThunk, toggleSubCategoryStatusThunk, deleteSubCategoryThunk, addSubCategoryAssetsThunk, deleteSubCategoryAssetThunk, toggleSubCategoryPremiumThunk } from '@/store/subcategory/thunk';
+import { getCategoryTitlesThunk } from '@/store/category/thunk';
+import { useFormik } from 'formik';
+import * as yup from 'yup';
+
+// Extended SubCategory with _id for API calls
+interface SubCategoryWithId extends SubCategory {
+  _id?: string;
+  categoryId?: string;
+  img_sqr?: string;
+  img_rec?: string;
+  video_sqr?: string;
+  video_rec?: string;
+  isPremium?: boolean;
+}
+
+// API Response Type
+interface ApiSubCategory {
+  _id: string;
+  categoryId: string;
+  subcategoryTitle: string;
+  img_sqr: string;
+  img_rec: string;
+  video_sqr: string;
+  video_rec: string;
+  status: boolean;
+  asset_images: string[];
+  isAiWorld: boolean;
+  aiWorldOrder: number;
+  isPremium?: boolean;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+}
+
+// Yup validation schema
+const subCategorySchema = yup.object().shape({
+  categoryId: yup
+    .string()
+    .required('Category is required'),
+  name: yup
+    .string()
+    .trim()
+    .required('Subcategory name is required')
+    .max(100, 'Subcategory name must be at most 100 characters'),
+  img_sqr: yup.mixed<File | string>().optional(),
+  img_rec: yup.mixed<File | string>().optional(),
+  video_sqr: yup.mixed<File | string>().optional(),
+  video_rec: yup.mixed<File | string>().optional(),
+  status: yup.boolean().required('Status is required'),
+});
 
 const SubCategories: React.FC = () => {
-  const [subCategories, setSubCategories] = useState<SubCategory[]>(mockSubCategories);
+  const dispatch = useAppDispatch();
+  const { data: apiSubCategories, dataLoading, loading } = useAppSelector((state) => state.SubCategory);
+  const { titles: categories, titlesLoading: categoriesLoading } = useAppSelector((state) => state.Category);
+  
+  // Map API response to component format
+  const mapApiToComponent = (apiData: ApiSubCategory[]): SubCategoryWithId[] => {
+    return apiData.map((item) => ({
+      id: parseInt(item._id.slice(-8), 16) || 0, // Convert _id to number for compatibility
+      _id: item._id, // Keep original _id for API calls
+      name: item.subcategoryTitle,
+      image: item.img_sqr,
+      video: item.video_sqr || '',
+      status: item.status,
+      order: item.order,
+      images: item.asset_images || [],
+      img_sqr: item.img_sqr,
+      img_rec: item.img_rec || '',
+      video_sqr: item.video_sqr || '',
+      video_rec: item.video_rec || '',
+      categoryId: item.categoryId, // Store categoryId
+      isPremium: item.isPremium ?? false,
+    }));
+  };
+
+  const subCategories = mapApiToComponent(apiSubCategories);
+
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isImageFormOpen, setIsImageFormOpen] = useState(false);
-  const [editingSubCategory, setEditingSubCategory] = useState<SubCategory | null>(null);
-  const [deleteSubCategory, setDeleteSubCategory] = useState<SubCategory | null>(null);
-  const [selectedSubCategory, setSelectedSubCategory] = useState<SubCategory | null>(null);
-  const { toast } = useToast();
+  const [editingSubCategory, setEditingSubCategory] = useState<SubCategoryWithId | null>(null);
+  const [deleteSubCategory, setDeleteSubCategory] = useState<SubCategoryWithId | null>(null);
+  const [selectedSubCategory, setSelectedSubCategory] = useState<SubCategoryWithId | null>(null);
+  const [deleteImage, setDeleteImage] = useState<{ subcategoryId: string; imageUrl: string } | null>(null);
 
-  const [formData, setFormData] = useState({
-    name: '',
-    image: '',
-    video: '',
-    status: true,
+  // Fetch subcategories and category titles on component mount
+  useEffect(() => {
+    dispatch(getSubCategoryThunk(undefined));
+    dispatch(getCategoryTitlesThunk());
+  }, [dispatch]);
+
+  const [selectedFiles, setSelectedFiles] = useState({
+    img_sqr: null as File | null,
+    img_rec: null as File | null,
+    video_sqr: null as File | null,
+    video_rec: null as File | null,
   });
 
-  const [newImages, setNewImages] = useState<string[]>([]);
+  const [removedFields, setRemovedFields] = useState<Set<string>>(new Set());
 
-  const resetForm = () => {
-    setFormData({ name: '', image: '', video: '', status: true });
+  const [videoPreviews, setVideoPreviews] = useState({
+    video_sqr: '',
+    video_rec: '',
+  });
+
+  // Cleanup video preview URLs on unmount
+  useEffect(() => {
+    return () => {
+      if (videoPreviews.video_sqr) {
+        URL.revokeObjectURL(videoPreviews.video_sqr);
+      }
+      if (videoPreviews.video_rec) {
+        URL.revokeObjectURL(videoPreviews.video_rec);
+      }
+    };
+  }, [videoPreviews.video_sqr, videoPreviews.video_rec]);
+
+  const fileInputRefs = {
+    img_sqr: useRef<HTMLInputElement>(null),
+    img_rec: useRef<HTMLInputElement>(null),
+    video_sqr: useRef<HTMLInputElement>(null),
+    video_rec: useRef<HTMLInputElement>(null),
+  };
+
+  const [newImages, setNewImages] = useState<Array<{ url: string; file?: File; preview?: string }>>([]);
+  const imageFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = async (
+    field: 'img_sqr' | 'img_rec' | 'video_sqr' | 'video_rec',
+    file: File | null,
+    formik: any
+  ) => {
+    if (!file) return;
+
+    if (field.startsWith('img')) {
+      // Convert file to base64 for preview and storage (works for any file type)
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        formik.setFieldValue(field, base64String);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      // Store file name and create preview URL (works for any file type)
+      const fileUrl = URL.createObjectURL(file);
+      formik.setFieldValue(field, file.name);
+      setVideoPreviews(prev => ({ ...prev, [field]: fileUrl }));
+    }
+
+    setSelectedFiles(prev => ({ ...prev, [field]: file }));
+    // Remove from removedFields if a new file is selected
+    setRemovedFields(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(field);
+      return newSet;
+    });
+  };
+
+  const resetForm = (formik: any) => {
+    // Clean up video preview URLs
+    if (videoPreviews.video_sqr) {
+      URL.revokeObjectURL(videoPreviews.video_sqr);
+    }
+    if (videoPreviews.video_rec) {
+      URL.revokeObjectURL(videoPreviews.video_rec);
+    }
+    
+    formik.resetForm({
+      values: {
+        categoryId: '',
+        name: '',
+        img_sqr: '',
+        img_rec: '',
+        video_sqr: '',
+        video_rec: '',
+        status: true,
+      },
+    });
+    setSelectedFiles({
+      img_sqr: null,
+      img_rec: null,
+      video_sqr: null,
+      video_rec: null,
+    });
+    setVideoPreviews({
+      video_sqr: '',
+      video_rec: '',
+    });
+    setRemovedFields(new Set());
+    // Reset file inputs
+    Object.values(fileInputRefs).forEach(ref => {
+      if (ref.current) ref.current.value = '';
+    });
     setEditingSubCategory(null);
   };
 
-  const handleOpenForm = (subCategory?: SubCategory) => {
+  const handleOpenForm = (subCategory: SubCategoryWithId | undefined, formik: any) => {
     if (subCategory) {
       setEditingSubCategory(subCategory);
-      setFormData({
+      formik.setValues({
+        categoryId: (subCategory as any).categoryId || '',
         name: subCategory.name,
-        image: subCategory.image,
-        video: subCategory.video,
+        img_sqr: subCategory.img_sqr || '',
+        img_rec: subCategory.img_rec || '',
+        video_sqr: subCategory.video_sqr || '',
+        video_rec: subCategory.video_rec || '',
         status: subCategory.status,
       });
+      // Reset file selections when editing (existing data is URL/base64)
+      setSelectedFiles({
+        img_sqr: null,
+        img_rec: null,
+        video_sqr: null,
+        video_rec: null,
+      });
+      // Clean up any existing video preview URLs
+      if (videoPreviews.video_sqr) {
+        URL.revokeObjectURL(videoPreviews.video_sqr);
+      }
+      if (videoPreviews.video_rec) {
+        URL.revokeObjectURL(videoPreviews.video_rec);
+      }
+      setVideoPreviews({
+        video_sqr: '',
+        video_rec: '',
+      });
     } else {
-      resetForm();
+      resetForm(formik);
     }
     setIsFormOpen(true);
   };
 
-  const handleOpenImageForm = (subCategory: SubCategory) => {
+  const handleOpenImageForm = (subCategory: SubCategoryWithId) => {
     setSelectedSubCategory(subCategory);
     setNewImages([]);
     setIsImageFormOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleImageFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      Array.from(files).forEach((file) => {
+        // Convert any file to base64 for preview (works for any file type)
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const preview = reader.result as string;
+          setNewImages(prev => [...prev, { url: '', file, preview }]);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+    // Reset input
+    if (imageFileInputRef.current) {
+      imageFileInputRef.current.value = '';
+    }
+  };
+
+  const handleAddImageUrl = (url: string) => {
+    if (url.trim()) {
+      setNewImages(prev => [...prev, { url: url.trim() }]);
+    }
+  };
+
+  const handleRemoveNewImage = (index: number) => {
+    const image = newImages[index];
+    // Clean up preview URL if exists
+    if (image.preview) {
+      URL.revokeObjectURL(image.preview);
+    }
+    setNewImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Formik form setup
+  const formik = useFormik({
+    initialValues: {
+      categoryId: '',
+      name: '',
+      img_sqr: '',
+      img_rec: '',
+      video_sqr: '',
+      video_rec: '',
+      status: true,
+    },
+    validationSchema: subCategorySchema,
+    onSubmit: async (values) => {
+      if (editingSubCategory && editingSubCategory._id) {
+        // Update FormData for multipart/form-data request
+        const formDataToSend = new FormData();
+        
+        // Add text fields
+        formDataToSend.append('subcategoryTitle', values.name.trim());
+        formDataToSend.append('status', values.status.toString());
+        
+        // Add categoryId if it's different or if it exists
+        if (values.categoryId) {
+          formDataToSend.append('categoryId', values.categoryId);
+        }
+        
+        // Handle img_sqr: new file, removed, or keep existing
+        if (selectedFiles.img_sqr) {
+          // New file selected
+          formDataToSend.append('img_sqr', selectedFiles.img_sqr);
+        } else if (removedFields.has('img_sqr')) {
+          // Image was explicitly removed
+          formDataToSend.append('img_sqr', 'null');
+        }
+        // If neither, don't send (keep existing)
+        
+        // Handle img_rec: new file, removed, or keep existing
+        if (selectedFiles.img_rec) {
+          // New file selected
+          formDataToSend.append('img_rec', selectedFiles.img_rec);
+        } else if (removedFields.has('img_rec')) {
+          // Image was explicitly removed
+          formDataToSend.append('img_rec', 'null');
+        }
+        // If neither, don't send (keep existing)
+        
+        // Handle video_sqr: new file, removed, or keep existing
+        if (selectedFiles.video_sqr) {
+          // New file selected
+          formDataToSend.append('video_sqr', selectedFiles.video_sqr);
+        } else if (removedFields.has('video_sqr')) {
+          // Video was explicitly removed
+          formDataToSend.append('video_sqr', 'null');
+        }
+        // If neither, don't send (keep existing)
+        
+        // Handle video_rec: new file, removed, or keep existing
+        if (selectedFiles.video_rec) {
+          // New file selected
+          formDataToSend.append('video_rec', selectedFiles.video_rec);
+        } else if (removedFields.has('video_rec')) {
+          // Video was explicitly removed
+          formDataToSend.append('video_rec', 'null');
+        }
+        // If neither, don't send (keep existing)
+
+        // Call API
+        const result = await dispatch(updateSubCategoryThunk({ id: editingSubCategory._id, data: formDataToSend }));
+        
+        if (updateSubCategoryThunk.fulfilled.match(result)) {
+          // Refresh subcategories list after successful update
+        dispatch(getSubCategoryThunk(undefined));
+        setIsFormOpen(false);
+        resetForm(formik);
+        }
+      } else {
+        // Create FormData for multipart/form-data request
+        const formDataToSend = new FormData();
+        
+        // Add required fields
+        formDataToSend.append('categoryId', values.categoryId);
+        formDataToSend.append('subcategoryTitle', values.name.trim());
+        
+        // Add image files
+        if (selectedFiles.img_sqr) {
+          formDataToSend.append('img_sqr', selectedFiles.img_sqr);
+        }
+        
+        if (selectedFiles.img_rec) {
+          formDataToSend.append('img_rec', selectedFiles.img_rec);
+        }
+        
+        // Add video files
+        if (selectedFiles.video_sqr) {
+          formDataToSend.append('video_sqr', selectedFiles.video_sqr);
+        }
+        
+        if (selectedFiles.video_rec) {
+          formDataToSend.append('video_rec', selectedFiles.video_rec);
+        }
+
+        // Call API
+        const result = await dispatch(createSubCategoryThunk(formDataToSend));
+        
+        if (createSubCategoryThunk.fulfilled.match(result)) {
+          // Refresh subcategories list after successful creation
+        dispatch(getSubCategoryThunk(undefined));
+        setIsFormOpen(false);
+        resetForm(formik);
+        }
+      }
+    },
+    enableReinitialize: true,
+  });
+
+  const handleDelete = async () => {
+    if (deleteSubCategory && deleteSubCategory._id) {
+      const result = await dispatch(deleteSubCategoryThunk(deleteSubCategory._id));
+      
+      if (deleteSubCategoryThunk.fulfilled.match(result)) {
+        // Refresh categories list after successful deletion
+        dispatch(getSubCategoryThunk(undefined));
+        setDeleteSubCategory(null);
+      }
+    }
+  };
+
+  const handleStatusToggle = async (item: SubCategoryWithId) => {
+    if (!item._id) {
+      toast.error('Subcategory ID is missing');
+      return;
+    }
+
+    // Toggle the status (opposite of current status)
+    const newStatus = !item.status;
+
+    const result = await dispatch(toggleSubCategoryStatusThunk({ id: item._id, status: newStatus }));
     
-    if (editingSubCategory) {
-      setSubCategories(prev =>
-        prev.map(sub =>
-          sub.id === editingSubCategory.id
-            ? { ...sub, ...formData }
-            : sub
-        )
-      );
-      toast({ title: 'Subcategory updated successfully' });
-    } else {
-      const newSubCategory: SubCategory = {
-        id: Math.max(...subCategories.map(s => s.id), 0) + 1,
-        ...formData,
-        order: subCategories.length + 1,
-        images: [],
-      };
-      setSubCategories(prev => [...prev, newSubCategory]);
-      toast({ title: 'Subcategory created successfully' });
-    }
-
-    setIsFormOpen(false);
-    resetForm();
-  };
-
-  const handleDelete = () => {
-    if (deleteSubCategory) {
-      setSubCategories(prev => prev.filter(sub => sub.id !== deleteSubCategory.id));
-      toast({ title: 'Subcategory deleted successfully' });
-      setDeleteSubCategory(null);
+    if (toggleSubCategoryStatusThunk.fulfilled.match(result)) {
+      // Refresh categories list after successful status toggle
+      dispatch(getSubCategoryThunk(undefined));
     }
   };
 
-  const handleStatusToggle = (id: number) => {
-    setSubCategories(prev =>
-      prev.map(sub =>
-        sub.id === id ? { ...sub, status: !sub.status } : sub
-      )
-    );
+  const handlePremiumToggle = async (item: SubCategoryWithId) => {
+    if (!item._id) {
+      toast.error('Subcategory ID is missing');
+      return;
+    }
+
+    const result = await dispatch(toggleSubCategoryPremiumThunk(item._id));
+    
+    if (toggleSubCategoryPremiumThunk.fulfilled.match(result)) {
+      // Refresh subcategories list after successful premium toggle
+      dispatch(getSubCategoryThunk(undefined));
+    }
   };
 
-  const handleAddImages = () => {
-    if (selectedSubCategory && newImages.length > 0) {
-      setSubCategories(prev =>
-        prev.map(sub =>
-          sub.id === selectedSubCategory.id
-            ? { ...sub, images: [...sub.images, ...newImages] }
-            : sub
-        )
-      );
-      toast({ title: 'Images added successfully' });
+  const handleAddImages = async () => {
+    if (selectedSubCategory && selectedSubCategory._id && newImages.length > 0) {
+      // Filter only files (not URLs) as API expects files
+      const imageFiles = newImages.filter(img => img.file).map(img => img.file!);
+      
+      if (imageFiles.length === 0) {
+        toast.error('Please upload image files. URLs are not supported.');
+        return;
+      }
+
+      // Create FormData with multiple asset_images fields
+      const formDataToSend = new FormData();
+      imageFiles.forEach((file) => {
+        formDataToSend.append('asset_images', file);
+      });
+
+      // Call API
+      const result = await dispatch(addSubCategoryAssetsThunk({ 
+        id: selectedSubCategory._id, 
+        formData: formDataToSend 
+      }));
+      
+      if (addSubCategoryAssetsThunk.fulfilled.match(result)) {
+      // Clean up preview URLs
+      newImages.forEach(img => {
+        if (img.preview) {
+          URL.revokeObjectURL(img.preview);
+        }
+      });
       setNewImages([]);
+      // Refresh data after adding images
+      dispatch(getSubCategoryThunk(undefined));
+        // Update selectedSubCategory from refreshed data
+        const updated = subCategories.find(s => s._id === selectedSubCategory._id);
+        if (updated) {
+          setSelectedSubCategory(updated);
+        }
+      }
     }
   };
 
   const handleDeleteImage = (imageIndex: number) => {
-    if (selectedSubCategory) {
-      setSubCategories(prev =>
-        prev.map(sub =>
-          sub.id === selectedSubCategory.id
-            ? { ...sub, images: sub.images.filter((_, idx) => idx !== imageIndex) }
-            : sub
-        )
-      );
-      setSelectedSubCategory(prev => 
-        prev ? { ...prev, images: prev.images.filter((_, idx) => idx !== imageIndex) } : null
-      );
+    if (selectedSubCategory && selectedSubCategory._id && selectedSubCategory.images[imageIndex]) {
+      const imageUrl = selectedSubCategory.images[imageIndex];
+      // Set delete image state to show confirmation dialog
+      setDeleteImage({
+        subcategoryId: selectedSubCategory._id,
+        imageUrl: imageUrl
+      });
+    }
+  };
+
+  const confirmDeleteImage = async () => {
+    if (deleteImage) {
+      // Call API to delete the image
+      const result = await dispatch(deleteSubCategoryAssetThunk({ 
+        id: deleteImage.subcategoryId, 
+        imageUrl: deleteImage.imageUrl 
+      }));
+      
+      if (deleteSubCategoryAssetThunk.fulfilled.match(result)) {
+      // Refresh data after deleting image
+      dispatch(getSubCategoryThunk(undefined));
+      // Update selectedSubCategory from refreshed data
+        const updated = subCategories.find(s => s._id === deleteImage.subcategoryId);
+      if (updated) {
+        setSelectedSubCategory(updated);
+        }
+        // Close dialog
+        setDeleteImage(null);
+      }
     }
   };
 
@@ -130,42 +522,180 @@ const SubCategories: React.FC = () => {
     {
       key: 'name',
       header: 'Subcategory Name',
-      render: (item: SubCategory) => (
+      render: (item: SubCategoryWithId) => (
         <span className="font-medium">{item.name}</span>
       ),
     },
     {
-      key: 'image',
-      header: 'Image',
-      render: (item: SubCategory) => (
-        <img
-          src={item.image}
-          alt={item.name}
-          className="w-12 h-12 rounded-lg object-cover"
-        />
+      key: 'img_sqr',
+      header: 'Image Square',
+      render: (item: SubCategoryWithId) => (
+        item.img_sqr ? (
+          <div className="flex justify-center">
+            <img
+              src={item.img_sqr}
+              alt={item.name}
+              className="w-16 h-16 rounded-lg object-cover border border-border mx-auto"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                const parent = target.parentElement;
+                if (parent && !parent.querySelector('.na-placeholder')) {
+                  const naSpan = document.createElement('span');
+                  naSpan.className = 'text-muted-foreground text-sm na-placeholder';
+                  naSpan.textContent = 'N/A';
+                  parent.appendChild(naSpan);
+                }
+              }}
+            />
+          </div>
+        ) : (
+          <span className="text-muted-foreground text-sm">N/A</span>
+        )
       ),
     },
     {
-      key: 'video',
-      header: 'Video',
-      render: (item: SubCategory) => (
-        <span className="text-muted-foreground text-sm">{item.video}</span>
+      key: 'img_rec',
+      header: 'Image Rectangle',
+      render: (item: SubCategoryWithId) => (
+        item.img_rec ? (
+          <div className="flex justify-center">
+            <img
+              src={item.img_rec}
+              alt={item.name}
+              className="w-16 h-16 rounded-lg object-cover border border-border mx-auto"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                const parent = target.parentElement;
+                if (parent && !parent.querySelector('.na-placeholder')) {
+                  const naSpan = document.createElement('span');
+                  naSpan.className = 'text-muted-foreground text-sm na-placeholder';
+                  naSpan.textContent = 'N/A';
+                  parent.appendChild(naSpan);
+                }
+              }}
+            />
+          </div>
+        ) : (
+          <span className="text-muted-foreground text-sm">N/A</span>
+        )
+      ),
+    },
+    {
+      key: 'video_sqr',
+      header: 'Video Square',
+      render: (item: SubCategoryWithId) => (
+        item.video_sqr ? (
+          <div className="flex justify-center">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="relative">
+                    <video
+                      src={item.video_sqr}
+                      className="w-16 h-16 rounded-lg object-cover border border-border bg-black cursor-pointer"
+                      controls={false}
+                      muted
+                      onMouseEnter={(e) => {
+                        e.currentTarget.play();
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.pause();
+                        e.currentTarget.currentTime = 0;
+                      }}
+                      onClick={(e) => {
+                        if (e.currentTarget.paused) {
+                          e.currentTarget.play();
+                        } else {
+                          e.currentTarget.pause();
+                        }
+                      }}
+                    />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="max-w-xs break-all">{item.video_sqr}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        ) : (
+          <span className="text-muted-foreground text-sm">N/A</span>
+        )
+      ),
+    },
+    {
+      key: 'video_rec',
+      header: 'Video Rectangle',
+      render: (item: SubCategoryWithId) => (
+        item.video_rec ? (
+          <div className="flex justify-center">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="relative">
+                    <video
+                      src={item.video_rec}
+                      className="w-24 h-16 rounded-lg object-cover border border-border bg-black cursor-pointer"
+                      controls={false}
+                      muted
+                      onMouseEnter={(e) => {
+                        e.currentTarget.play();
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.pause();
+                        e.currentTarget.currentTime = 0;
+                      }}
+                      onClick={(e) => {
+                        if (e.currentTarget.paused) {
+                          e.currentTarget.play();
+                        } else {
+                          e.currentTarget.pause();
+                        }
+                      }}
+                    />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="max-w-xs break-all">{item.video_rec}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        ) : (
+          <span className="text-muted-foreground text-sm">N/A</span>
+        )
       ),
     },
     {
       key: 'status',
       header: 'Status',
-      render: (item: SubCategory) => (
-        <Switch
-          checked={item.status}
-          onCheckedChange={() => handleStatusToggle(item.id)}
-        />
+      render: (item: SubCategoryWithId) => (
+        <div className="flex justify-center">
+          <Switch
+            checked={item.status}
+            onCheckedChange={() => handleStatusToggle(item)}
+          />
+        </div>
+      ),
+    },
+    {
+      key: 'isPremium',
+      header: 'Premium',
+      render: (item: SubCategoryWithId) => (
+        <div className="flex justify-center">
+          <Switch
+            checked={item.isPremium ?? false}
+            onCheckedChange={() => handlePremiumToggle(item)}
+          />
+        </div>
       ),
     },
     {
       key: 'images',
       header: 'Images',
-      render: (item: SubCategory) => (
+      render: (item: SubCategoryWithId) => (
         <Button
           variant="outline"
           size="sm"
@@ -180,12 +710,12 @@ const SubCategories: React.FC = () => {
     {
       key: 'actions',
       header: 'Actions',
-      render: (item: SubCategory) => (
+      render: (item: SubCategoryWithId) => (
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => handleOpenForm(item)}
+            onClick={() => handleOpenForm(item, formik)}
             className="h-8 w-8 text-muted-foreground hover:text-primary"
           >
             <Pencil className="w-4 h-4" />
@@ -215,72 +745,383 @@ const SubCategories: React.FC = () => {
     <div className="animate-fade-in">
       <div className="flex items-center justify-between mb-6">
         <h1 className="page-header mb-0">Subcategories</h1>
-        <Button onClick={() => handleOpenForm()} className="gradient-primary text-primary-foreground">
+        <Button onClick={() => handleOpenForm(undefined, formik)} className="gradient-primary text-primary-foreground">
           <Plus className="w-4 h-4 mr-2" />
           Add Subcategory
         </Button>
       </div>
 
-      <DraggableTable
-        columns={columns}
-        data={subCategories}
-        onReorder={setSubCategories}
-      />
+      {dataLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <p className="text-muted-foreground">Loading subcategories...</p>
+        </div>
+      ) : (
+        <DraggableTable
+          columns={columns}
+          data={subCategories}
+          onReorder={(reorderedData) => {
+            // TODO: Implement reorder API call
+            // For now, just refresh data
+            dispatch(getSubCategoryThunk(undefined));
+          }}
+        />
+      )}
 
       {/* Add/Edit Form Dialog */}
-      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={isFormOpen} onOpenChange={(open) => {
+        setIsFormOpen(open);
+        if (!open) {
+          resetForm(formik);
+        }
+      }}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingSubCategory ? 'Edit Subcategory' : 'Add New Subcategory'}</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-2xl font-bold break-words">
+              {editingSubCategory ? 'Edit Subcategory' : 'Add New Subcategory'}
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
               {editingSubCategory ? 'Update the subcategory details below.' : 'Fill in the details to create a new subcategory.'}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={formik.handleSubmit} className="space-y-6 mt-4">
+            {/* Category Selection */}
             <div className="space-y-2">
-              <Label htmlFor="name">Subcategory Name</Label>
+              <Label htmlFor="categoryId" className="text-sm font-semibold">
+                Category <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={formik.values.categoryId}
+                onValueChange={(value) => formik.setFieldValue('categoryId', value)}
+                disabled={categoriesLoading}
+              >
+                <SelectTrigger 
+                  id="categoryId"
+                  className={`h-11 ${formik.touched.categoryId && formik.errors.categoryId ? 'border-destructive' : ''}`}
+                >
+                  <SelectValue placeholder={categoriesLoading ? "Loading categories..." : "Select a category"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.length === 0 ? (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">No categories available</div>
+                  ) : (
+                    categories.map((category) => (
+                      <SelectItem key={category._id} value={category._id}>
+                        {category.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              {formik.touched.categoryId && formik.errors.categoryId && (
+                <p className="text-xs text-destructive mt-1">{formik.errors.categoryId}</p>
+              )}
+            </div>
+
+            {/* Subcategory Name */}
+            <div className="space-y-2">
+              <Label htmlFor="name" className="text-sm font-semibold">
+                Subcategory Name <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="name"
-                value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                name="name"
+                value={formik.values.name}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
                 placeholder="Enter subcategory name"
-                required
+                className={`h-11 ${formik.touched.name && formik.errors.name ? 'border-destructive' : ''}`}
               />
+              {formik.touched.name && formik.errors.name && (
+                <p className="text-xs text-destructive mt-1">{formik.errors.name}</p>
+              )}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="image">Image URL</Label>
-              <Input
-                id="image"
-                value={formData.image}
-                onChange={(e) => setFormData(prev => ({ ...prev, image: e.target.value }))}
-                placeholder="Enter image URL"
-                required
-              />
+
+            {/* Image Fields Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="img_sqr" className="text-sm font-semibold">
+                  Image Square
+                </Label>
+                <div className="space-y-2">
+                  <input
+                    ref={fileInputRefs.img_sqr}
+                    type="file"
+                    id="img_sqr"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      handleFileChange('img_sqr', file, formik);
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRefs.img_sqr.current?.click()}
+                    className="w-full h-11 border-2 border-dashed hover:border-primary transition-colors"
+                  >
+                    <Upload className="w-4 h-4 mr-2 flex-shrink-0" />
+                    <span className="truncate text-left flex-1">
+                      {selectedFiles.img_sqr ? selectedFiles.img_sqr.name : 'Select Square Image'}
+                    </span>
+                  </Button>
+                  {formik.values.img_sqr && (
+                    <div className="mt-2 relative inline-block">
+                      <div className="relative">
+                        <img
+                          src={formik.values.img_sqr}
+                          alt="Square preview"
+                          className="w-24 h-24 rounded-lg object-cover border-2 border-border"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute -top-2 -right-2 w-6 h-6 rounded-full shadow-md hover:scale-110 transition-transform"
+                          onClick={() => {
+                            formik.setFieldValue('img_sqr', '');
+                            setSelectedFiles(prev => ({ ...prev, img_sqr: null }));
+                            setRemovedFields(prev => new Set(prev).add('img_sqr'));
+                            if (fileInputRefs.img_sqr.current) {
+                              fileInputRefs.img_sqr.current.value = '';
+                            }
+                          }}
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="img_rec" className="text-sm font-semibold">
+                  Image Rectangle
+                </Label>
+                <div className="space-y-2">
+                  <input
+                    ref={fileInputRefs.img_rec}
+                    type="file"
+                    id="img_rec"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      handleFileChange('img_rec', file, formik);
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRefs.img_rec.current?.click()}
+                    className="w-full h-11 border-2 border-dashed hover:border-primary transition-colors"
+                  >
+                    <Upload className="w-4 h-4 mr-2 flex-shrink-0" />
+                    <span className="truncate text-left flex-1">
+                      {selectedFiles.img_rec ? selectedFiles.img_rec.name : 'Select Rectangle Image'}
+                    </span>
+                  </Button>
+                  {formik.values.img_rec && (
+                    <div className="mt-2 relative inline-block">
+                      <div className="relative">
+                        <img
+                          src={formik.values.img_rec}
+                          alt="Rectangle preview"
+                          className="w-36 h-24 rounded-lg object-cover border-2 border-border"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute -top-2 -right-2 w-6 h-6 rounded-full shadow-md hover:scale-110 transition-transform"
+                          onClick={() => {
+                            formik.setFieldValue('img_rec', '');
+                            setSelectedFiles(prev => ({ ...prev, img_rec: null }));
+                            setRemovedFields(prev => new Set(prev).add('img_rec'));
+                            if (fileInputRefs.img_rec.current) {
+                              fileInputRefs.img_rec.current.value = '';
+                            }
+                          }}
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="video">Video Filename</Label>
-              <Input
-                id="video"
-                value={formData.video}
-                onChange={(e) => setFormData(prev => ({ ...prev, video: e.target.value }))}
-                placeholder="Enter video filename"
-                required
-              />
+
+            {/* Video Fields Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="video_sqr" className="text-sm font-semibold">
+                  Video Square
+                </Label>
+                <div className="space-y-2">
+                  <input
+                    ref={fileInputRefs.video_sqr}
+                    type="file"
+                    id="video_sqr"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      handleFileChange('video_sqr', file, formik);
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRefs.video_sqr.current?.click()}
+                    className="w-full h-11 border-2 border-dashed hover:border-primary transition-colors"
+                  >
+                    <Video className="w-4 h-4 mr-2 flex-shrink-0" />
+                    <span className="truncate text-left flex-1">
+                      {selectedFiles.video_sqr ? selectedFiles.video_sqr.name : 'Select Square Video'}
+                    </span>
+                  </Button>
+                  {formik.values.video_sqr && (
+                    <div className="mt-2 relative inline-block">
+                      <div className="relative">
+                        <video
+                          src={videoPreviews.video_sqr || formik.values.video_sqr}
+                          className="w-48 h-48 rounded-lg object-cover border-2 border-border bg-black"
+                          controls 
+                          autoPlay
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute -top-2 -right-2 w-6 h-6 rounded-full shadow-md hover:scale-110 transition-transform z-10"
+                          onClick={() => {
+                            if (videoPreviews.video_sqr) {
+                              URL.revokeObjectURL(videoPreviews.video_sqr);
+                            }
+                            formik.setFieldValue('video_sqr', '');
+                            setSelectedFiles(prev => ({ ...prev, video_sqr: null }));
+                            setVideoPreviews(prev => ({ ...prev, video_sqr: '' }));
+                            setRemovedFields(prev => new Set(prev).add('video_sqr'));
+                            if (fileInputRefs.video_sqr.current) {
+                              fileInputRefs.video_sqr.current.value = '';
+                            }
+                          }}
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground truncate max-w-[192px]" title={formik.values.video_sqr}>
+                        {formik.values.video_sqr}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="video_rec" className="text-sm font-semibold">
+                  Video Rectangle
+                </Label>
+                <div className="space-y-2">
+                  <input
+                    ref={fileInputRefs.video_rec}
+                    type="file"
+                    id="video_rec"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      handleFileChange('video_rec', file, formik);
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRefs.video_rec.current?.click()}
+                    className="w-full h-11 border-2 border-dashed hover:border-primary transition-colors"
+                  >
+                    <Video className="w-4 h-4 mr-2 flex-shrink-0" />
+                    <span className="truncate text-left flex-1">
+                      {selectedFiles.video_rec ? selectedFiles.video_rec.name : 'Select Rectangle Video'}
+                    </span>
+                  </Button>
+                  {formik.values.video_rec && (
+                    <div className="mt-2 relative inline-block">
+                      <div className="relative">
+                        <video
+                          src={videoPreviews.video_rec || formik.values.video_rec}
+                          className="w-64 h-36 rounded-lg object-cover border-2 border-border bg-black"
+                          controls
+                          autoPlay
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute -top-2 -right-2 w-6 h-6 rounded-full shadow-md hover:scale-110 transition-transform z-10"
+                          onClick={() => {
+                            if (videoPreviews.video_rec) {
+                              URL.revokeObjectURL(videoPreviews.video_rec);
+                            }
+                            formik.setFieldValue('video_rec', '');
+                            setSelectedFiles(prev => ({ ...prev, video_rec: null }));
+                            setVideoPreviews(prev => ({ ...prev, video_rec: '' }));
+                            setRemovedFields(prev => new Set(prev).add('video_rec'));
+                            if (fileInputRefs.video_rec.current) {
+                              fileInputRefs.video_rec.current.value = '';
+                            }
+                          }}
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground truncate max-w-[256px]" title={formik.values.video_rec}>
+                        {formik.values.video_rec}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="status">Active Status</Label>
+
+            {/* Status Toggle */}
+            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border border-border">
+              <div className="space-y-0.5">
+                <Label htmlFor="status" className="text-sm font-semibold cursor-pointer">
+                  Active Status
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Enable or disable this subcategory
+                </p>
+              </div>
               <Switch
                 id="status"
-                checked={formData.status}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, status: checked }))}
+                name="status"
+                checked={formik.values.status}
+                onCheckedChange={(checked) => formik.setFieldValue('status', checked)}
               />
             </div>
-            <DialogFooter className="gap-2">
-              <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>
+
+            <DialogFooter className="gap-2 pt-4 border-t">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => {
+                  setIsFormOpen(false);
+                  resetForm(formik);
+                }}
+                className="min-w-[100px]"
+              >
                 Cancel
               </Button>
-              <Button type="submit" className="gradient-primary text-primary-foreground">
-                {editingSubCategory ? 'Update' : 'Create'}
+              <Button 
+                type="submit" 
+                className="gradient-primary text-primary-foreground min-w-[100px]"
+                disabled={loading}
+              >
+                {loading ? (editingSubCategory ? 'Updating...' : 'Creating...') : (editingSubCategory ? 'Update' : 'Create')}
               </Button>
             </DialogFooter>
           </form>
@@ -288,92 +1129,206 @@ const SubCategories: React.FC = () => {
       </Dialog>
 
       {/* Image Management Dialog */}
-      <Dialog open={isImageFormOpen} onOpenChange={setIsImageFormOpen}>
-        <DialogContent className="sm:max-w-lg">
+      <Dialog open={isImageFormOpen} onOpenChange={(open) => {
+        setIsImageFormOpen(open);
+        if (!open) {
+          // Clean up preview URLs when closing
+          newImages.forEach(img => {
+            if (img.preview) {
+              URL.revokeObjectURL(img.preview);
+            }
+          });
+          setNewImages([]);
+        }
+      }}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Manage Images - {selectedSubCategory?.name}</DialogTitle>
-            <DialogDescription>
-              Add or remove images for this subcategory.
+            <DialogTitle className="text-2xl font-bold break-words">
+              Manage Images - {selectedSubCategory?.name}
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              Add or remove images for this subcategory. You can upload files or add image URLs.
             </DialogDescription>
           </DialogHeader>
           
-          {/* Add Images Section */}
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Add New Images</Label>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Enter image URL"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      const input = e.target as HTMLInputElement;
-                      if (input.value.trim()) {
-                        setNewImages(prev => [...prev, input.value.trim()]);
+          <div className="space-y-6 mt-4">
+            {/* Add New Images Section */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Add New Images</Label>
+                
+                {/* File Upload Option */}
+                <div className="space-y-2">
+                  <input
+                    ref={imageFileInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={handleImageFileSelect}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => imageFileInputRef.current?.click()}
+                    className="w-full h-11 border-2 border-dashed hover:border-primary transition-colors"
+                  >
+                    <Upload className="w-4 h-4 mr-2 flex-shrink-0" />
+                    <span>Upload Image Files</span>
+                  </Button>
+                </div>
+
+                {/* URL Input Option */}
+                {/* <div className="flex gap-2">
+                  <Input
+                    placeholder="Or enter image URL"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const input = e.target as HTMLInputElement;
+                        handleAddImageUrl(input.value);
                         input.value = '';
                       }
-                    }
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    const input = document.querySelector('input[placeholder="Enter image URL"]') as HTMLInputElement;
-                    if (input?.value.trim()) {
-                      setNewImages(prev => [...prev, input.value.trim()]);
-                      input.value = '';
-                    }
-                  }}
-                >
-                  <Plus className="w-4 h-4" />
-                </Button>
+                    }}
+                    className="h-11"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      const input = document.querySelector('input[placeholder="Or enter image URL"]') as HTMLInputElement;
+                      if (input?.value.trim()) {
+                        handleAddImageUrl(input.value);
+                        input.value = '';
+                      }
+                    }}
+                    className="h-11"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div> */}
               </div>
-              
+
+              {/* New Images Preview */}
               {newImages.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {newImages.map((img, idx) => (
-                    <div key={idx} className="flex items-center gap-1 bg-accent px-2 py-1 rounded text-sm">
-                      <span className="truncate max-w-[150px]">{img}</span>
-                      <button
-                        onClick={() => setNewImages(prev => prev.filter((_, i) => i !== idx))}
-                        className="text-muted-foreground hover:text-foreground"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">
+                    New Images ({newImages.length})
+                  </Label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-64 overflow-y-auto p-2 border rounded-lg bg-muted/30">
+                    {newImages.map((img, idx) => (
+                      <div key={idx} className="relative group">
+                        <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-border bg-muted">
+                          {img.preview ? (
+                            <img
+                              src={img.preview}
+                              alt={`Preview ${idx + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : img.url ? (
+                            <img
+                              src={img.url}
+                              alt={`Image ${idx + 1}`}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                const parent = target.parentElement;
+                                if (parent && !parent.querySelector('.error-placeholder')) {
+                                  const errorDiv = document.createElement('div');
+                                  errorDiv.className = 'error-placeholder w-full h-full flex items-center justify-center text-xs text-muted-foreground bg-destructive/10';
+                                  errorDiv.textContent = 'Invalid URL';
+                                  parent.appendChild(errorDiv);
+                                }
+                              }}
+                            />
+                          ) : null}
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon"
+                            className="absolute top-1 right-1 w-6 h-6 rounded-full shadow-md hover:scale-110 transition-transform opacity-0 group-hover:opacity-100"
+                            onClick={() => handleRemoveNewImage(idx)}
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                          {img.file && (
+                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1 truncate">
+                              {img.file.name}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <Button 
+                    onClick={handleAddImages} 
+                    className="w-full gradient-primary text-primary-foreground"
+                    size="lg"
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <>
+                        <div className="w-4 h-4 mr-2 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                        Adding Images...
+                      </>
+                    ) : (
+                      <>
+                    <Upload className="w-4 h-4 mr-2" />
+                    Add {newImages.length} Image(s)
+                      </>
+                    )}
+                  </Button>
                 </div>
-              )}
-              
-              {newImages.length > 0 && (
-                <Button onClick={handleAddImages} size="sm" className="mt-2">
-                  <Upload className="w-4 h-4 mr-2" />
-                  Add {newImages.length} Image(s)
-                </Button>
               )}
             </div>
 
-            {/* Existing Images */}
+            {/* Existing Images Section */}
             {selectedSubCategory && selectedSubCategory.images.length > 0 && (
-              <div className="space-y-2">
-                <Label>Existing Images ({selectedSubCategory.images.length})</Label>
-                <div className="grid grid-cols-2 gap-3 max-h-60 overflow-y-auto">
+              <div className="space-y-2 border-t pt-4">
+                <Label className="text-sm font-semibold">
+                  Existing Images ({selectedSubCategory.images.length})
+                </Label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-64 overflow-y-auto p-2 border rounded-lg bg-muted/30">
                   {selectedSubCategory.images.map((img, idx) => (
                     <div key={idx} className="relative group">
-                      <div className="bg-secondary rounded-lg p-2 flex items-center gap-2">
-                        <div className="w-10 h-10 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">
-                          IMG
-                        </div>
-                        <span className="text-sm truncate flex-1">{img}</span>
+                      <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-border bg-muted">
+                        <img
+                          src={img}
+                          alt={`Image ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            const parent = target.parentElement;
+                            if (parent && !parent.querySelector('.error-placeholder')) {
+                              const errorDiv = document.createElement('div');
+                              errorDiv.className = 'error-placeholder w-full h-full flex items-center justify-center text-xs text-muted-foreground bg-destructive/10';
+                              errorDiv.textContent = 'Failed to load';
+                              parent.appendChild(errorDiv);
+                            }
+                          }}
+                        />
                         <Button
-                          variant="ghost"
+                          type="button"
+                          variant="destructive"
                           size="icon"
-                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                          className="absolute top-1 right-1 w-6 h-6 rounded-full shadow-md hover:scale-110 transition-transform opacity-0 group-hover:opacity-100"
                           onClick={() => handleDeleteImage(idx)}
                         >
                           <Trash2 className="w-3 h-3" />
                         </Button>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1 truncate cursor-help">
+                                {img}
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="max-w-xs break-all">{img}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </div>
                     </div>
                   ))}
@@ -381,23 +1336,38 @@ const SubCategories: React.FC = () => {
               </div>
             )}
 
+            {/* Empty State */}
             {selectedSubCategory?.images.length === 0 && newImages.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                <Images className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>No images added yet</p>
+              <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-lg">
+                <Images className="w-16 h-16 mx-auto mb-3 opacity-50" />
+                <p className="font-medium">No images added yet</p>
+                <p className="text-sm mt-1">Upload files or add image URLs to get started</p>
               </div>
             )}
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsImageFormOpen(false)}>
+          <DialogFooter className="gap-2 pt-4 border-t">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsImageFormOpen(false);
+                // Clean up preview URLs
+                newImages.forEach(img => {
+                  if (img.preview) {
+                    URL.revokeObjectURL(img.preview);
+                  }
+                });
+                setNewImages([]);
+              }}
+              className="min-w-[100px]"
+            >
               Close
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Subcategory Confirmation Dialog */}
       <AlertDialog open={!!deleteSubCategory} onOpenChange={() => setDeleteSubCategory(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -410,6 +1380,24 @@ const SubCategories: React.FC = () => {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Yes, Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Image Confirmation Dialog */}
+      <AlertDialog open={!!deleteImage} onOpenChange={() => setDeleteImage(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to delete this image?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the image from the subcategory.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteImage} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Okay, Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

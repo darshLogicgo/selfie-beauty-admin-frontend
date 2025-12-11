@@ -4,19 +4,20 @@ import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
 
 interface SelectableItem {
-  id: number;
+  id: number | string;
   name: string;
   image: string;
 }
 
 interface SelectableListProps {
   items: SelectableItem[];
-  selectedIds: number[];
-  onSelectionChange: (ids: number[]) => void;
+  selectedIds: (number | string)[];
+  onSelectionChange: (ids: (number | string)[]) => void;
   onReorder?: (items: SelectableItem[]) => void;
   multiSelect?: boolean;
   draggable?: boolean;
   title?: string;
+  updatingIds?: Set<string>;
 }
 
 const SelectableList: React.FC<SelectableListProps> = ({
@@ -27,6 +28,7 @@ const SelectableList: React.FC<SelectableListProps> = ({
   multiSelect = true,
   draggable = true,
   title,
+  updatingIds = new Set(),
 }) => {
   const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null);
@@ -36,7 +38,7 @@ const SelectableList: React.FC<SelectableListProps> = ({
     setLocalItems(items);
   }, [items]);
 
-  const handleToggle = (id: number) => {
+  const handleToggle = (id: number | string) => {
     if (multiSelect) {
       const newSelection = selectedIds.includes(id)
         ? selectedIds.filter(sid => sid !== id)
@@ -86,21 +88,23 @@ const SelectableList: React.FC<SelectableListProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {localItems.map((item, index) => {
           const isSelected = selectedIds.includes(item.id);
+          const isUpdating = updatingIds.has(String(item.id));
           
           return (
             <div
               key={item.id}
-              draggable={draggable}
+              draggable={draggable && !isUpdating}
               onDragStart={(e) => handleDragStart(e, index)}
               onDragOver={(e) => handleDragOver(e, index)}
               onDrop={(e) => handleDrop(e, index)}
               onDragEnd={handleDragEnd}
-              onClick={() => handleToggle(item.id)}
+              onClick={() => !isUpdating && handleToggle(item.id)}
               className={cn(
                 'checkbox-item',
                 isSelected && 'checkbox-item-selected',
                 draggedIndex === index && 'opacity-50',
-                dragOverIndex === index && 'ring-2 ring-primary'
+                dragOverIndex === index && 'ring-2 ring-primary',
+                isUpdating && 'opacity-60 cursor-wait'
               )}
             >
               {draggable && (

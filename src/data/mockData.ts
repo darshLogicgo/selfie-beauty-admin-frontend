@@ -1,8 +1,10 @@
 export interface Category {
   id: number;
   name: string;
-  image: string;
-  video: string;
+  imageSquare: string;
+  imageRectangle: string;
+  videoSquare: string;
+  videoRectangle: string;
   status: boolean;
   order: number;
 }
@@ -26,12 +28,12 @@ export interface User {
 }
 
 export const mockCategories: Category[] = [
-  { id: 1, name: "Face Filters", image: "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=100&h=100&fit=crop", video: "filter_video.mp4", status: true, order: 1 },
-  { id: 2, name: "Makeup Effects", image: "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=100&h=100&fit=crop", video: "makeup_video.mp4", status: true, order: 2 },
-  { id: 3, name: "Background Effects", image: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=100&h=100&fit=crop", video: "bg_video.mp4", status: true, order: 3 },
-  { id: 4, name: "Hair Styles", image: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=100&h=100&fit=crop", video: "hair_video.mp4", status: false, order: 4 },
-  { id: 5, name: "Eye Effects", image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop", video: "eye_video.mp4", status: true, order: 5 },
-  { id: 6, name: "Skin Smoothing", image: "https://images.unsplash.com/photo-1515688594390-b649af70d282?w=100&h=100&fit=crop", video: "skin_video.mp4", status: true, order: 6 },
+  { id: 1, name: "Face Filters", imageSquare: "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=100&h=100&fit=crop", imageRectangle: "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=200&h=100&fit=crop", videoSquare: "filter_video_square.mp4", videoRectangle: "filter_video_rect.mp4", status: true, order: 1 },
+  { id: 2, name: "Makeup Effects", imageSquare: "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=100&h=100&fit=crop", imageRectangle: "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=200&h=100&fit=crop", videoSquare: "makeup_video_square.mp4", videoRectangle: "makeup_video_rect.mp4", status: true, order: 2 },
+  { id: 3, name: "Background Effects", imageSquare: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=100&h=100&fit=crop", imageRectangle: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=200&h=100&fit=crop", videoSquare: "bg_video_square.mp4", videoRectangle: "bg_video_rect.mp4", status: true, order: 3 },
+  { id: 4, name: "Hair Styles", imageSquare: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=100&h=100&fit=crop", imageRectangle: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=200&h=100&fit=crop", videoSquare: "hair_video_square.mp4", videoRectangle: "hair_video_rect.mp4", status: false, order: 4 },
+  { id: 5, name: "Eye Effects", imageSquare: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop", imageRectangle: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=100&fit=crop", videoSquare: "eye_video_square.mp4", videoRectangle: "eye_video_rect.mp4", status: true, order: 5 },
+  { id: 6, name: "Skin Smoothing", imageSquare: "https://images.unsplash.com/photo-1515688594390-b649af70d282?w=100&h=100&fit=crop", imageRectangle: "https://images.unsplash.com/photo-1515688594390-b649af70d282?w=200&h=100&fit=crop", videoSquare: "skin_video_square.mp4", videoRectangle: "skin_video_rect.mp4", status: true, order: 6 },
 ];
 
 export const mockSubCategories: SubCategory[] = [

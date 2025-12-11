@@ -1,14 +1,15 @@
 import React from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
-import { useAuth } from '@/contexts/AuthContext';
+import { AUTH_ROUTES } from '@/constants/routes';
 
 const AdminLayout: React.FC = () => {
-  const { isAuthenticated } = useAuth();
+  const token = localStorage.getItem("token");
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
+  // Only check token - if no token, redirect to login
+  if (!token) {
+    return <Navigate to={AUTH_ROUTES.SIGN_IN} replace />;
+  } 
 
   return (
     <div className="min-h-screen bg-background">

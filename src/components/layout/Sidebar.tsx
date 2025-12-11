@@ -11,26 +11,28 @@ import {
   LogOut,
   Sparkles
 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAppDispatch } from '@/store/hooks';
+import { logout } from '@/store/auth/slice';
 import { cn } from '@/lib/utils';
+import { AUTH_ROUTES, ADMIN_ROUTES } from '@/constants/routes';
 
 const menuItems = [
-  { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { path: '/categories', icon: FolderOpen, label: 'Categories' },
-  { path: '/subcategories', icon: Layers, label: 'Subcategories' },
-  { path: '/home-settings', icon: Home, label: 'Home' },
-  { path: '/ai-photo', icon: Camera, label: 'AI Photo' },
-  { path: '/trending', icon: TrendingUp, label: 'Trending' },
-  { path: '/ai-world', icon: Globe, label: 'AI World' },
+  { path: ADMIN_ROUTES.DASHBOARD, icon: LayoutDashboard, label: 'Dashboard' },
+  { path: ADMIN_ROUTES.CATEGORIES, icon: FolderOpen, label: 'Categories' },
+  { path: ADMIN_ROUTES.SUB_CATEGORIES, icon: Layers, label: 'Subcategories' },
+  { path: ADMIN_ROUTES.HOME_SETTINGS, icon: Home, label: 'Home' },
+  { path: ADMIN_ROUTES.AI_PHOTO, icon: Camera, label: 'AI Photo' },
+  { path: ADMIN_ROUTES.TRENDING, icon: TrendingUp, label: 'Trending' },
+  { path: ADMIN_ROUTES.AI_WORLD, icon: Globe, label: 'AI World' },
 ];
 
 const Sidebar: React.FC = () => {
-  const { logout } = useAuth();
+  const dispatch = useAppDispatch();
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    dispatch(logout());
+    navigate(AUTH_ROUTES.SIGN_IN);
   };
 
   return (

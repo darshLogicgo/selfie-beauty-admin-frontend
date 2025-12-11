@@ -1,46 +1,47 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { signInThunk } from '@/store/auth/thunk';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Sparkles, Eye, EyeOff, Mail, Lock } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import toast from 'react-hot-toast';
+import { AUTH_ROUTES, ADMIN_ROUTES } from '@/constants/routes';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const { login, isAuthenticated } = useAuth();
+  const dispatch = useAppDispatch();
+  const { loading, isAuthenticated } = useAppSelector((state) => state.Auth);
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const token = localStorage.getItem("token");
 
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+  // Redirect to dashboard if already authenticated
+  useEffect(() => {
+    if (isAuthenticated || token) {
+      navigate(ADMIN_ROUTES.DASHBOARD, { replace: true });
+    }
+  }, [isAuthenticated, token, navigate]);
+
+  // If token exists on mount, redirect to dashboard
+  if (token) {
+    return <Navigate to={ADMIN_ROUTES.DASHBOARD} replace />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-
-    const success = await login(email, password);
     
-    if (success) {
-      toast({
-        title: "Welcome back!",
-        description: "You have successfully logged in.",
-      });
-      navigate('/dashboard');
-    } else {
-      toast({
-        title: "Login failed",
-        description: "Invalid email or password. Try admin@selfiebeauty.com / admin123",
-        variant: "destructive",
-      });
+    const result = await dispatch(signInThunk({ email, password }));
+    
+    if (signInThunk.fulfilled.match(result)) {
+      // Navigation will be handled by useEffect when isAuthenticated becomes true
+      navigate(ADMIN_ROUTES.DASHBOARD, { replace: true });
+    } else if (signInThunk.rejected.match(result)) {
+      const errorMessage = (result.payload as { message?: string })?.message || "Invalid email or password.";
+      // toast.error(errorMessage);
     }
-    
-    setIsLoading(false);
   };
 
   return (
@@ -123,15 +124,15 @@ const Login: React.FC = () => {
             <Button
               type="submit"
               className="w-full h-12 gradient-primary text-primary-foreground font-semibold text-base hover:opacity-90 transition-opacity"
-              disabled={isLoading}
+              disabled={loading}
             >
-              {isLoading ? 'Signing in...' : 'Sign In'}
+              {loading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-muted-foreground">
+          {/* <p className="mt-6 text-center text-sm text-muted-foreground">
             Demo credentials: admin@selfiebeauty.com / admin123
-          </p>
+          </p> */}
         </div>
       </div>
     </div>
