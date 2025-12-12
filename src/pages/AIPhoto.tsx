@@ -135,14 +135,14 @@ const AIPhoto: React.FC = () => {
           </div>
           <h1 className="page-header mb-0">AI Photo</h1>
         </div>
-        <Button
+        {/* <Button
           onClick={handleSave}
           className="gradient-primary text-primary-foreground"
           disabled={dataLoading}
         >
           <Save className="w-4 h-4 mr-2" />
           Save Changes
-        </Button>
+        </Button> */}
       </div>
 
       {dataLoading ? (

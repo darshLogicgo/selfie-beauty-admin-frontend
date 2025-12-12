@@ -1,6 +1,6 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { toastError, toastSuccess } from "../../config/toastConfig";
-import { getTrending, updateTrendingStatus } from "../../helpers/backend_helper";
+import { getTrending, updateTrendingStatus, reorderTrending } from "../../helpers/backend_helper";
 
 // ============================================
 // Trending Thunks
@@ -34,6 +34,34 @@ export const updateTrendingStatusThunk = createAsyncThunk(
       return response.data;
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || "Failed to update trending status";
+      if (errorMessage) {
+        toastError(errorMessage);
+      }
+      return rejectWithValue({
+        status: error.response?.status,
+        message: errorMessage,
+      });
+    }
+  }
+);
+
+export const reorderTrendingThunk = createAsyncThunk(
+  "reorderTrendingThunk",
+  async (
+    data: { categories: Array<{ _id: string; trendingOrder: number }> },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await reorderTrending(data);
+      toastSuccess(
+        response.data?.message ||
+          "Trending categories reordered successfully"
+      );
+      return response.data;
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message ||
+        "Failed to reorder trending categories";
       if (errorMessage) {
         toastError(errorMessage);
       }

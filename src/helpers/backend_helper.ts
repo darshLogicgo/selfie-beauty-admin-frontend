@@ -61,6 +61,12 @@ export const updateTrendingStatus = (
   return api.patch(`${url.TRENDING_API.UPDATE_STATUS}/${id}`, data);
 };
 
+export const reorderTrending = (data: {
+  categories: Array<{ _id: string; trendingOrder: number }>;
+}) => {
+  return api.patch(url.TRENDING_API.REORDER, data);
+};
+
 // ============================================
 // AI World API Functions
 // ============================================
@@ -70,6 +76,12 @@ export const getAIWorld = () => {
 
 export const toggleAIWorld = (id: string) => {
   return api.patch(`${url.AI_WORLD_API.TOGGLE_AI_WORLD}/${id}`);
+};
+
+export const reorderAIWorld = (data: {
+  categories: Array<{ _id: string; aiWorldOrder: number }>;
+}) => {
+  return api.patch(url.AI_WORLD_API.REORDER, data);
 };
 
 // ============================================

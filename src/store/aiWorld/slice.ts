@@ -1,5 +1,5 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { getAIWorldThunk, toggleAIWorldThunk } from "./thunk";
+import { getAIWorldThunk, toggleAIWorldThunk, reorderAIWorldThunk } from "./thunk";
 
 const initialState = {
   loading: false,
@@ -66,6 +66,23 @@ const slice = createSlice({
       const id = action.meta.arg;
       state.updatingIds = state.updatingIds.filter(updatingId => updatingId !== id);
       state.error = (action.payload as { message?: string })?.message || "Failed to update AI World status";
+    });
+
+    // =================================  Reorder AI World ==================================
+    builder.addCase(reorderAIWorldThunk.pending, (state) => {
+      state.loading = true;
+      state.message = "";
+      state.error = null;
+    });
+    builder.addCase(reorderAIWorldThunk.fulfilled, (state, action) => {
+      state.loading = false;
+      state.message = action.payload?.message || "";
+      state.error = null;
+    });
+    builder.addCase(reorderAIWorldThunk.rejected, (state, action) => {
+      state.loading = false;
+      state.error = (action.payload as { message?: string })?.message || "Failed to reorder AI World categories";
+      state.message = "";
     });
   },
 });

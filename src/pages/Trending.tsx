@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
 import SelectableList from '@/components/ui/SelectableList';
 import toast from 'react-hot-toast';
-import { Save, TrendingUp, Loader2 } from 'lucide-react';
+import { TrendingUp, Loader2 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { getTrendingThunk, updateTrendingStatusThunk } from '@/store/trending/thunk';
+import { getTrendingThunk, updateTrendingStatusThunk, reorderTrendingThunk } from '@/store/trending/thunk';
 
 interface TrendingCategory {
   _id: string;
@@ -33,7 +32,6 @@ const Trending: React.FC = () => {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [categories, setCategories] = useState<SelectableItem[]>([]);
   const [updatingIds, setUpdatingIds] = useState<Set<string>>(new Set());
-  const [hasOrderChanged, setHasOrderChanged] = useState<boolean>(false);
 
   // Fetch trending categories on mount
   useEffect(() => {
@@ -92,20 +90,44 @@ const Trending: React.FC = () => {
         })
         .map(cat => cat.id);
       setSelectedCategories(selected);
-      
-      // Reset order changed flag when data is refreshed
-      setHasOrderChanged(false);
     } else if (trendingData && trendingData.length === 0) {
       setCategories([]);
       setSelectedCategories([]);
-      setHasOrderChanged(false);
     }
   }, [trendingData]);
 
-  // Handle reorder - mark that order has changed
-  const handleReorder = (reorderedItems: SelectableItem[]) => {
+  // Handle reorder - call API directly like AIPhoto
+  const handleReorder = async (reorderedItems: SelectableItem[]) => {
+    if (reorderedItems.length === 0) {
+      return;
+    }
+
+    // Update local state immediately for better UX
     setCategories(reorderedItems);
-    setHasOrderChanged(true);
+
+    // Calculate trendingOrder based on position in the full reordered list
+    // This ensures sequential ordering (1, 2, 3...) for ALL items
+    // Backend will update trendingOrder for all categories based on their position
+    const reorderData = reorderedItems.map((item, index) => ({
+      _id: item.id,
+      trendingOrder: index + 1, // Sequential order starting from 1 for all items
+    }));
+
+    // Call API to save the new order
+    try {
+      const result = await dispatch(reorderTrendingThunk({ categories: reorderData }));
+
+      if (reorderTrendingThunk.fulfilled.match(result)) {
+        // Refresh data to get updated order from backend
+        dispatch(getTrendingThunk());
+      } else {
+        // If reorder failed, refresh to revert UI
+        dispatch(getTrendingThunk());
+      }
+    } catch (error) {
+      // If reorder fails, refresh to revert UI
+      dispatch(getTrendingThunk());
+    }
   };
 
   // Handle selection change and call API
@@ -167,13 +189,6 @@ const Trending: React.FC = () => {
           </div>
           <h1 className="page-header mb-0">Trending</h1>
         </div>
-        <Button 
-          className="gradient-primary text-primary-foreground"
-          disabled={!hasOrderChanged}
-        >
-          <Save className="w-4 h-4 mr-2" />
-          Save Changes
-        </Button>
       </div>
 
       <div className="section-card">
