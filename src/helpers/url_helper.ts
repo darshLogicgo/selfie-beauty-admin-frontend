@@ -91,3 +91,14 @@ export const HOME_API = {
   REORDER_SECTION7: API + "/home/section7/reorder",
   SETTINGS: API + "/home/settings",
 };
+
+// Uninstall APIs
+export const UNINSTALL_API = {
+  BASE: API + "/uninstall",
+};
+
+// Feedback/Support APIs
+export const FEEDBACK_API = {
+  BASE: API + "/feedback",
+  STATS: API + "/feedback/stats",
+};
