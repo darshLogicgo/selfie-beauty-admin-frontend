@@ -35,12 +35,14 @@ export const get = (url: string, queryParams?: Record<string, any>) => {
 
   if (queryParams) {
     for (const [key, value] of Object.entries(queryParams)) {
-      if (Array.isArray(value)) {
-        value.forEach((val) => {
-          queryArray.push(`${key}=${val}`);
-        });
-      } else {
-        queryArray.push(`${key}=${value}`);
+      if (value !== null && value !== undefined && value !== "") {
+        if (Array.isArray(value)) {
+          value.forEach((val) => {
+            queryArray.push(`${encodeURIComponent(key)}=${encodeURIComponent(val)}`);
+          });
+        } else {
+          queryArray.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
+        }
       }
     }
   }

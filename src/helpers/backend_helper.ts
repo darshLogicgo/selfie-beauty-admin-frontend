@@ -73,6 +73,40 @@ export const toggleAIWorld = (id: string) => {
 };
 
 // ============================================
+// Uninstall API Functions
+// ============================================
+export const getUninstall = (queryParams?: Record<string, any>) => {
+  return api.get(url.UNINSTALL_API.BASE, queryParams);
+};
+
+export const getAppVersions = () => {
+  return api.get(`${url.UNINSTALL_API.BASE}/app-versions`);
+};
+
+export const deleteUninstall = (id: string) => {
+  return api.remove(`${url.UNINSTALL_API.BASE}/${id}`);
+};
+
+// ============================================
+// Feedback/Support API Functions
+// ============================================
+export const getFeedback = (queryParams?: Record<string, any>) => {
+  return api.get(url.FEEDBACK_API.BASE, queryParams);
+};
+
+export const getFeedbackStats = () => {
+  return api.get(url.FEEDBACK_API.STATS);
+};
+
+export const getFeedbackById = (id: string) => {
+  return api.get(`${url.FEEDBACK_API.BASE}/${id}`);
+};
+
+export const updateFeedbackStatus = (id: string, status: string) => {
+  return api.patch(`${url.FEEDBACK_API.BASE}/${id}/status`, { status });
+};
+
+// ============================================
 // SubCategory API Functions
 // ============================================
 export const getSubCategory = (queryParams?: Record<string, any>) => {

@@ -88,3 +88,14 @@ export const HOME_API = {
   REORDER_SECTION6: API + "/home/section6/reorder",
   REORDER_SECTION7: API + "/home/section7/reorder",
 };
+
+// Uninstall APIs
+export const UNINSTALL_API = {
+  BASE: API + "/uninstall",
+};
+
+// Feedback/Support APIs
+export const FEEDBACK_API = {
+  BASE: API + "/feedback",
+  STATS: API + "/feedback/stats",
+};

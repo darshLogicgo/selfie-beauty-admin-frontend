@@ -6,6 +6,8 @@ import AIWorld from "./aiWorld/slice";
 import HomeSettings from "./homeSettings/slice";
 import SubCategory from "./subcategory/slice";
 import AIPhoto from "./aiPhoto/slice";
+import Support from "./support/slice";
+import Uninstall from "./uninstall/slice";
 // Import other slices here as you create them
 // import Dashboard from "./dashboard/slice";
 
@@ -17,6 +19,8 @@ export const appReducer = combineReducers({
   HomeSettings,
   SubCategory,
   AIPhoto,
+  Support,
+  Uninstall,
   // Add other reducers here as you create them
   // Dashboard,
 });
