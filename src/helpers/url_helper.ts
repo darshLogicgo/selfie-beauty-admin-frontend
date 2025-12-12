@@ -22,7 +22,7 @@ export const SUB_CATEGORY_API = {
   BASE: API + "/subcategory",
   LIST: API + "/subcategory/list",
   CREATE: API + "/subcategory",
-  UPDATE: API + "/subcategory",
+  UPDATE: API + "/subcategory/update",
   DELETE: API + "/subcategory",
   ASSETS: API + "/subcategory",
   DELETE_ASSET: API + "/subcategory",
@@ -55,6 +55,7 @@ export const TRENDING_API = {
   BASE: API + "/trending",
   LIST: API + "/trending/list",
   UPDATE_STATUS: API + "/trending/toggle-trending",
+  REORDER: API + "/trending/reorder",
 };
 
 // AI World APIs
@@ -65,6 +66,7 @@ export const AI_WORLD_API = {
   UPDATE: API + "/ai-world",
   DELETE: API + "/ai-world",
   TOGGLE_AI_WORLD: API + "/ai-world/toggle-ai-world",
+  REORDER: API + "/ai-world/reorder",
 };
 
 // Dashboard APIs

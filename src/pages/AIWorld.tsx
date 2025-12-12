@@ -4,7 +4,7 @@ import SelectableList from '@/components/ui/SelectableList';
 import toast from 'react-hot-toast';
 import { Save, Globe } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { getAIWorldThunk, toggleAIWorldThunk } from '@/store/aiWorld/thunk';
+import { getAIWorldThunk, toggleAIWorldThunk, reorderAIWorldThunk } from '@/store/aiWorld/thunk';
 
 interface CategoryItem {
   id: string;
@@ -84,13 +84,43 @@ const AIWorld: React.FC = () => {
     }
   };
 
-  const handleReorder = (items: CategoryItem[]) => {
-    setCategories(items);
+  // Handle reorder - call API directly like Trending/AIPhoto
+  const handleReorder = async (reorderedItems: CategoryItem[]) => {
+    if (reorderedItems.length === 0) {
+      return;
+    }
+
+    // Update local state immediately for better UX
+    setCategories(reorderedItems);
     // Update selected categories order based on new item order
-    const newSelectedOrder = items
+    const newSelectedOrder = reorderedItems
       .filter(item => selectedCategories.includes(item.id))
       .map(item => item.id);
     setSelectedCategories(newSelectedOrder);
+
+    // Calculate aiWorldOrder based on position in the full reordered list
+    // This ensures sequential ordering (1, 2, 3...) for ALL items
+    // Backend will update aiWorldOrder for all categories based on their position
+    const reorderData = reorderedItems.map((item, index) => ({
+      _id: item.id,
+      aiWorldOrder: index + 1, // Sequential order starting from 1 for all items
+    }));
+
+    // Call API to save the new order
+    try {
+      const result = await dispatch(reorderAIWorldThunk({ categories: reorderData }));
+
+      if (reorderAIWorldThunk.fulfilled.match(result)) {
+        // Refresh data to get updated order from backend
+        dispatch(getAIWorldThunk());
+      } else {
+        // If reorder failed, refresh to revert UI
+        dispatch(getAIWorldThunk());
+      }
+    } catch (error) {
+      // If reorder fails, refresh to revert UI
+      dispatch(getAIWorldThunk());
+    }
   };
 
   const handleSave = () => {

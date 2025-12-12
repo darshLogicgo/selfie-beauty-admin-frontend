@@ -1,5 +1,5 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { getTrendingThunk, updateTrendingStatusThunk } from "./thunk";
+import { getTrendingThunk, updateTrendingStatusThunk, reorderTrendingThunk } from "./thunk";
 
 const initialState = {
   loading: false,
@@ -56,6 +56,23 @@ const slice = createSlice({
       const id = action.meta.arg.id;
       state.updatingIds = state.updatingIds.filter(updatingId => updatingId !== id);
       state.error = (action.payload as { message?: string })?.message || "Failed to update trending status";
+    });
+
+    // =================================  Reorder Trending ==================================
+    builder.addCase(reorderTrendingThunk.pending, (state) => {
+      state.loading = true;
+      state.message = "";
+      state.error = null;
+    });
+    builder.addCase(reorderTrendingThunk.fulfilled, (state, action) => {
+      state.loading = false;
+      state.message = action.payload?.message || "";
+      state.error = null;
+    });
+    builder.addCase(reorderTrendingThunk.rejected, (state, action) => {
+      state.loading = false;
+      state.error = (action.payload as { message?: string })?.message || "Failed to reorder trending categories";
+      state.message = "";
     });
   },
 });

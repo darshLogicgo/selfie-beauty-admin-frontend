@@ -478,7 +478,7 @@ const HomeSettings: React.FC = () => {
     try {
       await dispatch(reorderHomeSection2Thunk({ categories })).unwrap();
       // Refresh data after successful reorder
-      dispatch(getHomeDataThunk());
+      // dispatch(getHomeDataThunk());
     } catch (error) {
       // Error is already handled by the thunk
     }
@@ -598,13 +598,13 @@ const HomeSettings: React.FC = () => {
     <div className="animate-fade-in">
       <div className="flex items-center justify-between mb-6">
         <h1 className="page-header mb-0">Home Page Settings</h1>
-        <Button
+        {/* <Button
           onClick={handleSave}
           className="gradient-primary text-primary-foreground"
         >
           <Save className="w-4 h-4 mr-2" />
           Save Changes
-        </Button>
+        </Button> */}
       </div>
 
       <div className="space-y-6">

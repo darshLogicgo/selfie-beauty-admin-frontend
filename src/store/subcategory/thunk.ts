@@ -25,7 +25,7 @@ export const getSubCategoryThunk = createAsyncThunk(
     { rejectWithValue }
   ) => {
     try {
-      const response = await getSubCategory(queryParams || { limit: 100 });
+      const response = await getSubCategory(queryParams);
       return response.data;
     } catch (error: any) {
       const errorMessage =
