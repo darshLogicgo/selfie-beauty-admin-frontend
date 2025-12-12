@@ -89,4 +89,5 @@ export const HOME_API = {
   REORDER_SECTION5: API + "/home/section5/reorder",
   REORDER_SECTION6: API + "/home/section6/reorder",
   REORDER_SECTION7: API + "/home/section7/reorder",
+  SETTINGS: API + "/home/settings",
 };

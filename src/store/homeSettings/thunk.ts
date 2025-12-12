@@ -11,6 +11,7 @@ import {
   reorderHomeSection5,
   reorderHomeSection6,
   reorderHomeSection7,
+  updateHomeSettings,
 } from "../../helpers/backend_helper";
 
 // ============================================
@@ -260,6 +261,32 @@ export const reorderHomeSection7Thunk = createAsyncThunk(
     } catch (error: any) {
       const errorMessage =
         error.response?.data?.message || "Failed to reorder section 7";
+      if (errorMessage) {
+        toastError(errorMessage);
+      }
+      return rejectWithValue({
+        status: error.response?.status,
+        message: errorMessage,
+      });
+    }
+  }
+);
+
+export const updateHomeSettingsThunk = createAsyncThunk(
+  "updateHomeSettingsThunk",
+  async (
+    data: { section6Title?: string; section7Title?: string },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await updateHomeSettings(data);
+      toastSuccess(
+        response.data?.message || "Home settings updated successfully"
+      );
+      return response.data;
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message || "Failed to update home settings";
       if (errorMessage) {
         toastError(errorMessage);
       }

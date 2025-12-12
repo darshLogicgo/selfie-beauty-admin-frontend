@@ -17,6 +17,7 @@ import {
   reorderHomeSection5Thunk,
   reorderHomeSection6Thunk,
   reorderHomeSection7Thunk,
+  updateHomeSettingsThunk,
 } from "@/store/homeSettings/thunk";
 import { updateSectionItem } from "@/store/homeSettings/slice";
 
@@ -26,10 +27,62 @@ const HomeSettings: React.FC = () => {
     (state) => state.HomeSettings
   );
 
+  // Local state for title inputs
+  const [section6Title, setSection6Title] = useState("");
+  const [section7Title, setSection7Title] = useState("");
+  const [savingSection6, setSavingSection6] = useState(false);
+  const [savingSection7, setSavingSection7] = useState(false);
+
   // Fetch home data on component mount
   useEffect(() => {
     dispatch(getHomeDataThunk());
   }, [dispatch]);
+
+  // Update local state when data changes
+  useEffect(() => {
+    if (data.section6?.title !== undefined) {
+      setSection6Title(data.section6.title || "");
+    }
+    if (data.section7?.title !== undefined) {
+      setSection7Title(data.section7.title || "");
+    }
+  }, [data.section6?.title, data.section7?.title]);
+
+  // Check if section 6 title has changed
+  const hasSection6Changes = section6Title !== (data.section6?.title || "");
+
+  // Check if section 7 title has changed
+  const hasSection7Changes = section7Title !== (data.section7?.title || "");
+
+  const handleSaveSection6Title = async () => {
+    if (!hasSection6Changes) return;
+
+    setSavingSection6(true);
+    try {
+      await dispatch(updateHomeSettingsThunk({ section6Title })).unwrap();
+      // Refresh data after successful update
+      dispatch(getHomeDataThunk());
+    } catch (error) {
+      // Error is already handled by the thunk
+    } finally {
+      setSavingSection6(false);
+    }
+  };
+
+  const handleSaveSection7Title = async () => {
+    if (!hasSection7Changes) return;
+
+    setSavingSection7(true);
+    try {
+      await dispatch(updateHomeSettingsThunk({ section7Title })).unwrap();
+      // Refresh data after successful update
+      dispatch(getHomeDataThunk());
+    } catch (error) {
+      // Error is already handled by the thunk
+    } finally {
+      setSavingSection7(false);
+    }
+  };
 
   const handleSave = () => {
     toast.success("Settings saved! Home page configuration has been updated.");
@@ -711,13 +764,26 @@ const HomeSettings: React.FC = () => {
           </p>
           <div className="mb-4">
             <Label htmlFor="section6Title">Section Title</Label>
-            <Input
-              id="section6Title"
-              value={data.section6.title || ""}
-              readOnly
-              placeholder="Enter section title"
-              className="max-w-md mt-1"
-            />
+            <div className="flex items-end gap-2 mt-1">
+              <Input
+                id="section6Title"
+                value={section6Title}
+                onChange={(e) => setSection6Title(e.target.value)}
+                placeholder="Enter section title"
+                className="max-w-md"
+              />
+              {hasSection6Changes && (
+                <Button
+                  onClick={handleSaveSection6Title}
+                  disabled={savingSection6}
+                  className="gradient-primary text-primary-foreground"
+                  size="sm"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  {savingSection6 ? "Saving..." : "Save"}
+                </Button>
+              )}
+            </div>
           </div>
           <SelectableList
             items={section6Items}
@@ -740,13 +806,26 @@ const HomeSettings: React.FC = () => {
           </p>
           <div className="mb-4">
             <Label htmlFor="section7Title">Section Title</Label>
-            <Input
-              id="section7Title"
-              value={data.section7.title || ""}
-              readOnly
-              placeholder="Enter section title"
-              className="max-w-md mt-1"
-            />
+            <div className="flex items-end gap-2 mt-1">
+              <Input
+                id="section7Title"
+                value={section7Title}
+                onChange={(e) => setSection7Title(e.target.value)}
+                placeholder="Enter section title"
+                className="max-w-md"
+              />
+              {hasSection7Changes && (
+                <Button
+                  onClick={handleSaveSection7Title}
+                  disabled={savingSection7}
+                  className="gradient-primary text-primary-foreground"
+                  size="sm"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  {savingSection7 ? "Saving..." : "Save"}
+                </Button>
+              )}
+            </div>
           </div>
           <SelectableList
             items={section7Items}

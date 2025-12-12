@@ -96,7 +96,7 @@ export const createSubCategory = (data: FormData) => {
 };
 
 export const updateSubCategory = (id: string, data: FormData) => {
-  return api.patch(`${url.SUB_CATEGORY_API.UPDATE}/update/${id}`, data);
+  return api.patch(`${url.SUB_CATEGORY_API.UPDATE}/${id}`, data);
 };
 
 export const toggleSubCategoryStatus = (id: string, status: boolean) => {
@@ -215,6 +215,13 @@ export const reorderHomeSection7 = (data: {
   categories: Array<{ _id: string; section7Order: number }>;
 }) => {
   return api.patch(url.HOME_API.REORDER_SECTION7, data);
+};
+
+export const updateHomeSettings = (data: {
+  section6Title?: string;
+  section7Title?: string;
+}) => {
+  return api.patch(url.HOME_API.SETTINGS, data);
 };
 
 // ============================================
