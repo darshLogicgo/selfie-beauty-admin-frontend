@@ -16,6 +16,8 @@ export const ADMIN_ROUTES = {
   AI_PHOTO: "/ai-photo",
   TRENDING: "/trending",
   AI_WORLD: "/ai-world",
+  SUPPORT: "/support",
+  UNINSTALL: "/uninstall",
 };
 
 // API Endpoints Constants (for reference, actual endpoints are in url_helper.ts)
