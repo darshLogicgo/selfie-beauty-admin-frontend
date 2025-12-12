@@ -84,7 +84,7 @@ export const createSubCategory = (data: FormData) => {
 };
 
 export const updateSubCategory = (id: string, data: FormData) => {
-  return api.patch(`${url.SUB_CATEGORY_API.UPDATE}/${id}`, data);
+  return api.patch(`${url.SUB_CATEGORY_API.UPDATE}/update/${id}`, data);
 };
 
 export const toggleSubCategoryStatus = (id: string, status: boolean) => {

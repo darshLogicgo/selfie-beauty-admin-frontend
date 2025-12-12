@@ -412,9 +412,11 @@ const SubCategories: React.FC = () => {
         formDataToSend.append("subcategoryTitle", values.name.trim());
         formDataToSend.append("status", values.status.toString());
 
-        // Add categoryId if it's different or if it exists
-        if (values.categoryId) {
-          formDataToSend.append("categoryId", values.categoryId);
+        // Always send categoryId when updating (required by validation)
+        // Use form value or fallback to existing subcategory's categoryId
+        const categoryIdToSend = values.categoryId || (editingSubCategory as any).categoryId;
+        if (categoryIdToSend) {
+          formDataToSend.append("categoryId", categoryIdToSend);
         }
 
         // Handle img_sqr: new file, removed, or keep existing
