@@ -1,33 +1,35 @@
-import React from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  FolderOpen, 
-  Layers, 
-  Home, 
-  Camera, 
-  TrendingUp, 
-  Globe, 
+import React from "react";
+import { NavLink, useNavigate } from "react-router-dom";
+import {
+  LayoutDashboard,
+  FolderOpen,
+  Layers,
+  Home,
+  Camera,
+  TrendingUp,
+  Globe,
   LogOut,
   Sparkles,
   Headphones,
-  PackageX
-} from 'lucide-react';
-import { useAppDispatch } from '@/store/hooks';
-import { logout } from '@/store/auth/slice';
-import { cn } from '@/lib/utils';
-import { AUTH_ROUTES, ADMIN_ROUTES } from '@/constants/routes';
+  PackageX,
+  MoreHorizontal,
+} from "lucide-react";
+import { useAppDispatch } from "@/store/hooks";
+import { logout } from "@/store/auth/slice";
+import { cn } from "@/lib/utils";
+import { AUTH_ROUTES, ADMIN_ROUTES } from "@/constants/routes";
 
 const menuItems = [
-  { path: ADMIN_ROUTES.DASHBOARD, icon: LayoutDashboard, label: 'Dashboard' },
-  { path: ADMIN_ROUTES.CATEGORIES, icon: FolderOpen, label: 'Categories' },
-  { path: ADMIN_ROUTES.SUB_CATEGORIES, icon: Layers, label: 'Subcategories' },
-  { path: ADMIN_ROUTES.HOME_SETTINGS, icon: Home, label: 'Home' },
-  { path: ADMIN_ROUTES.AI_PHOTO, icon: Camera, label: 'AI Photo' },
-  { path: ADMIN_ROUTES.TRENDING, icon: TrendingUp, label: 'Trending' },
-  { path: ADMIN_ROUTES.AI_WORLD, icon: Globe, label: 'AI World' },
-  { path: ADMIN_ROUTES.SUPPORT, icon: Headphones, label: 'Support' },
-  { path: ADMIN_ROUTES.UNINSTALL, icon: PackageX, label: 'Uninstall' },
+  { path: ADMIN_ROUTES.DASHBOARD, icon: LayoutDashboard, label: "Dashboard" },
+  { path: ADMIN_ROUTES.CATEGORIES, icon: FolderOpen, label: "Categories" },
+  { path: ADMIN_ROUTES.SUB_CATEGORIES, icon: Layers, label: "Subcategories" },
+  { path: ADMIN_ROUTES.HOME_SETTINGS, icon: Home, label: "Home" },
+  { path: ADMIN_ROUTES.MORE, icon: MoreHorizontal, label: "More" },
+  { path: ADMIN_ROUTES.AI_PHOTO, icon: Camera, label: "AI Photo" },
+  { path: ADMIN_ROUTES.TRENDING, icon: TrendingUp, label: "Trending" },
+  { path: ADMIN_ROUTES.AI_WORLD, icon: Globe, label: "AI World" },
+  { path: ADMIN_ROUTES.SUPPORT, icon: Headphones, label: "Support" },
+  { path: ADMIN_ROUTES.UNINSTALL, icon: PackageX, label: "Uninstall" },
 ];
 
 const Sidebar: React.FC = () => {
@@ -48,7 +50,9 @@ const Sidebar: React.FC = () => {
             <Sparkles className="w-6 h-6 text-sidebar-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-sidebar-foreground font-semibold text-lg leading-tight">Selfie Beauty</h1>
+            <h1 className="text-sidebar-foreground font-semibold text-lg leading-tight">
+              Selfie Beauty
+            </h1>
             <p className="text-sidebar-muted text-xs">Camera Admin</p>
           </div>
         </div>
@@ -62,10 +66,7 @@ const Sidebar: React.FC = () => {
               <NavLink
                 to={item.path}
                 className={({ isActive }) =>
-                  cn(
-                    'sidebar-item',
-                    isActive && 'sidebar-item-active'
-                  )
+                  cn("sidebar-item", isActive && "sidebar-item-active")
                 }
               >
                 <item.icon className="w-5 h-5" />

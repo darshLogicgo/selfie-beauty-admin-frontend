@@ -16,6 +16,7 @@ export const ADMIN_ROUTES = {
   AI_PHOTO: "/ai-photo",
   TRENDING: "/trending",
   AI_WORLD: "/ai-world",
+  MORE: "/more",
   SUPPORT: "/support",
   UNINSTALL: "/uninstall",
 };
@@ -49,6 +50,10 @@ export const API_ENDPOINTS = {
   AI_WORLD: {
     BASE: "/api/ai-world",
     LIST: "/api/ai-world/list",
+  },
+  MORE: {
+    BASE: "/api/more",
+    LIST: "/api/more/list",
   },
   DASHBOARD: {
     BASE: "/api/dashboard",

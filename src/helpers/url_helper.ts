@@ -69,6 +69,14 @@ export const AI_WORLD_API = {
   REORDER: API + "/ai-world/reorder",
 };
 
+// More APIs
+export const MORE_API = {
+  BASE: API + "/categories/more",
+  LIST: API + "/categories/more/list",
+  UPDATE_STATUS: API + "/categories/more/toggle-more",
+  REORDER: API + "/categories/more/reorder",
+};
+
 // Dashboard APIs
 export const DASHBOARD_API = {
   BASE: API + "/dashboard",

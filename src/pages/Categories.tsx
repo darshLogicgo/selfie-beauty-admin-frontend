@@ -3,6 +3,7 @@ import { Plus, Pencil, Trash2, X, Upload, Image as ImageIcon, Video } from 'luci
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -23,6 +24,7 @@ const categorySchema = yup.object().shape({
     .required('Category name is required')
     // .min(2, 'Category name must be at least 2 characters')
     .max(100, 'Category name must be at most 100 characters'),
+  prompt: yup.string().trim().optional(),
   imageSquare: yup.mixed<File | string>().optional(),
   imageRectangle: yup.mixed<File | string>().optional(),
   videoSquare: yup.mixed<File | string>().optional(),
@@ -48,9 +50,10 @@ const Categories: React.FC = () => {
   // Map API response to Category type
   useEffect(() => {
     if (categoriesData && categoriesData.length > 0) {
-      const mappedCategories: (Category & { _id?: string; isPremium?: boolean })[] = categoriesData.map((item: any, index: number) => ({
+      const mappedCategories: (Category & { _id?: string; isPremium?: boolean; prompt?: string })[] = categoriesData.map((item: any, index: number) => ({
         id: parseInt(item._id?.slice(-8) || String(index + 1), 16) || index + 1, // Convert _id to number or use index
         name: item.name || '',
+        prompt: item.prompt || '',
         imageSquare: (item.img_sqr && item.img_sqr !== null) ? item.img_sqr : '',
         imageRectangle: (item.img_rec && item.img_rec !== null) ? item.img_rec : '',
         videoSquare: (item.video_sqr && item.video_sqr !== null) ? item.video_sqr : '',
@@ -148,6 +151,7 @@ const Categories: React.FC = () => {
     formik.resetForm({
       values: {
         name: '',
+        prompt: '',
         imageSquare: '',
         imageRectangle: '',
         videoSquare: '',
@@ -178,6 +182,7 @@ const Categories: React.FC = () => {
       setEditingCategory(category);
       formik.setValues({
         name: category.name,
+        prompt: (category as any).prompt || '',
         imageSquare: category.imageSquare,
         imageRectangle: category.imageRectangle,
         videoSquare: category.videoSquare,
@@ -212,6 +217,7 @@ const Categories: React.FC = () => {
   const formik = useFormik({
     initialValues: {
       name: '',
+      prompt: '',
       imageSquare: '',
       imageRectangle: '',
       videoSquare: '',
@@ -226,6 +232,9 @@ const Categories: React.FC = () => {
         
         // Add text fields
         formDataToSend.append('name', values.name.trim());
+        if (values.prompt && values.prompt.trim()) {
+          formDataToSend.append('prompt', values.prompt.trim());
+        }
         formDataToSend.append('status', values.status.toString());
         
         // Handle imageSquare: new file, removed, or keep existing
@@ -283,6 +292,9 @@ const Categories: React.FC = () => {
         
         // Add text fields
         formDataToSend.append('name', values.name.trim());
+        if (values.prompt && values.prompt.trim()) {
+          formDataToSend.append('prompt', values.prompt.trim());
+        }
         formDataToSend.append('status', values.status.toString());
         
         // Add image files
@@ -697,6 +709,25 @@ const Categories: React.FC = () => {
               />
               {formik.touched.name && formik.errors.name && (
                 <p className="text-xs text-destructive mt-1">{formik.errors.name}</p>
+              )}
+            </div>
+
+            {/* Prompt Field */}
+            <div className="space-y-2">
+              <Label htmlFor="prompt" className="text-sm font-semibold">
+                Prompt
+              </Label>
+              <Textarea
+                id="prompt"
+                name="prompt"
+                value={formik.values.prompt}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
+                placeholder="Enter prompt"
+                className={`min-h-[100px] ${formik.touched.prompt && formik.errors.prompt ? 'border-destructive' : ''}`}
+              />
+              {formik.touched.prompt && formik.errors.prompt && (
+                <p className="text-xs text-destructive mt-1">{formik.errors.prompt}</p>
               )}
             </div>
 

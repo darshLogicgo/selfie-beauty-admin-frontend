@@ -1,5 +1,6 @@
 import * as APIHandler from "./api_helper";
 import * as url from "./url_helper";
+import axios from "axios";
 
 const api = APIHandler;
 
@@ -82,6 +83,26 @@ export const reorderAIWorld = (data: {
   categories: Array<{ _id: string; aiWorldOrder: number }>;
 }) => {
   return api.patch(url.AI_WORLD_API.REORDER, data);
+};
+
+// ============================================
+// More API Functions
+// ============================================
+export const getMore = () => {
+  return api.get(url.MORE_API.BASE);
+};
+
+export const updateMoreStatus = (
+  id: string,
+  data: { isMore: boolean }
+) => {
+  return api.patch(`${url.MORE_API.UPDATE_STATUS}/${id}`, data);
+};
+
+export const reorderMore = (data: {
+  categories: Array<{ _id: string; moreOrder: number }>;
+}) => {
+  return api.patch(url.MORE_API.REORDER, data);
 };
 
 // ============================================
@@ -276,4 +297,79 @@ export const reorderAIPhoto = (
   data: Array<{ id: string; aiPhotoOrder: number }>
 ) => {
   return api.patch(url.AI_PHOTO_API.REORDER, data);
+};
+
+// ============================================
+// Dashboard API Functions
+// ============================================
+export const getDashboardStats = () => {
+  return api.get(url.DASHBOARD_API.STATS);
+};
+
+// ============================================
+// Live Status API Functions
+// ============================================
+const LIVE_STATUS_BASE_URL = "https://logicgoinfotechspaces-beauty-camera-live-status.hf.space";
+const STATIC_TOKEN = "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"; // Static Bearer token - hardcoded, doesn't change
+
+// Category endpoints mapping
+const LIVE_STATUS_ENDPOINTS = {
+  faceswap: "/api-status-faceswap",
+  background_remover: "/api-status-background-remover",
+  halloween_image: "/api-status-halloween-image",
+  nanobanana: "/api-status-nanobanana",
+  descratch: "/api-status-descratch",
+  object_remover: "/api-status-object-remover",
+  colorization: "/api-status-colorization",
+  face_enhancer: "/api-status-face-enhancer",
+  polaroid: "/api-status-polaroid",
+  bikini_swap: "/api-status-bikini-swap",
+};
+
+export const getLiveStatus = async (filter: string = "all", startDate?: string, endDate?: string) => {
+  const queryParams: Record<string, string> = {
+    filter,
+  };
+  
+  // Add date parameters only for custom filter
+  if (filter === "custom" && startDate && endDate) {
+    queryParams.start_date = startDate;
+    queryParams.end_date = endDate;
+  }
+
+  // Call all endpoints in parallel
+  const promises = Object.entries(LIVE_STATUS_ENDPOINTS).map(async ([categoryKey, endpoint]) => {
+    try {
+      const queryString = new URLSearchParams(queryParams).toString();
+      const url = `${LIVE_STATUS_BASE_URL}${endpoint}${queryString ? `?${queryString}` : ""}`;
+      
+      const response = await axios.get(url, {
+        headers: {
+          Authorization: `Bearer ${STATIC_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+      });
+      
+      return { categoryKey, data: response.data };
+    } catch (error: any) {
+      // Return error data for this category
+      return { 
+        categoryKey, 
+        data: null,
+        error: error.response?.data?.message || "Failed to fetch"
+      };
+    }
+  });
+
+  const results = await Promise.all(promises);
+  
+  // Convert array to object with category keys
+  const liveStatusData: Record<string, any> = {};
+  results.forEach(({ categoryKey, data, error }) => {
+    if (data) {
+      liveStatusData[categoryKey] = data;
+    }
+  });
+
+  return { data: liveStatusData };
 };

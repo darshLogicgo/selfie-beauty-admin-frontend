@@ -3,26 +3,26 @@ import Auth from "./auth/slice";
 import Category from "./category/slice";
 import Trending from "./trending/slice";
 import AIWorld from "./aiWorld/slice";
+import More from "./more/slice";
 import HomeSettings from "./homeSettings/slice";
 import SubCategory from "./subcategory/slice";
 import AIPhoto from "./aiPhoto/slice";
 import Support from "./support/slice";
 import Uninstall from "./uninstall/slice";
-// Import other slices here as you create them
-// import Dashboard from "./dashboard/slice";
+import Dashboard from "./dashboard/slice";
 
 export const appReducer = combineReducers({
   Auth,
   Category,
   Trending,
   AIWorld,
+  More,
   HomeSettings,
   SubCategory,
   AIPhoto,
   Support,
   Uninstall,
-  // Add other reducers here as you create them
-  // Dashboard,
+  Dashboard,
 });
 
 export const rootReducer = (state: any, action: any) => {
