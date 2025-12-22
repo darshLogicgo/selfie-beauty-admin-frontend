@@ -300,6 +300,26 @@ export const reorderAIPhoto = (
 };
 
 // ============================================
+// User Preference API Functions
+// ============================================
+export const getUserPreference = (queryParams?: Record<string, any>) => {
+  return api.get(url.USER_PREFERENCE_API.ADMIN, queryParams);
+};
+
+export const toggleUserPreference = (
+  id: string,
+  data: { isUserPreference: boolean }
+) => {
+  return api.patch(`${url.USER_PREFERENCE_API.TOGGLE}/${id}`, data);
+};
+
+export const reorderUserPreference = (data: {
+  categories: Array<{ _id: string; userPreferenceOrder: number }>;
+}) => {
+  return api.patch(url.USER_PREFERENCE_API.REORDER, data);
+};
+
+// ============================================
 // Dashboard API Functions
 // ============================================
 export const getDashboardStats = () => {

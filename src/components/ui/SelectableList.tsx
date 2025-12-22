@@ -7,6 +7,7 @@ interface SelectableItem {
   id: number | string;
   name: string;
   image: string;
+  userPreferenceCount?: number;
 }
 
 interface SelectableListProps {
@@ -115,7 +116,14 @@ const SelectableList: React.FC<SelectableListProps> = ({
                 alt={item.name}
                 className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
               />
-              <span className="flex-1 font-medium text-sm truncate">{item.name}</span>
+              <div className="flex-1 min-w-0">
+                <span className="block font-medium text-sm truncate">{item.name}</span>
+                {item.userPreferenceCount !== undefined && (
+                  <span className="block text-xs text-muted-foreground mt-0.5">
+                    {item.userPreferenceCount} {item.userPreferenceCount === 1 ? 'use' : 'uses'}
+                  </span>
+                )}
+              </div>
               <div className={cn(
                 'w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors',
                 isSelected 

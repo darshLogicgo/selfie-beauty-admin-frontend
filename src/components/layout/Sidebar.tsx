@@ -13,6 +13,7 @@ import {
   Headphones,
   PackageX,
   MoreHorizontal,
+  Heart,
 } from "lucide-react";
 import { useAppDispatch } from "@/store/hooks";
 import { logout } from "@/store/auth/slice";
@@ -28,6 +29,7 @@ const menuItems = [
   { path: ADMIN_ROUTES.AI_PHOTO, icon: Camera, label: "AI Photo" },
   { path: ADMIN_ROUTES.TRENDING, icon: TrendingUp, label: "Trending" },
   { path: ADMIN_ROUTES.AI_WORLD, icon: Globe, label: "AI World" },
+  { path: ADMIN_ROUTES.USER_PREFERENCE, icon: Heart, label: "User Preference" },
   { path: ADMIN_ROUTES.SUPPORT, icon: Headphones, label: "Support" },
   { path: ADMIN_ROUTES.UNINSTALL, icon: PackageX, label: "Uninstall" },
 ];

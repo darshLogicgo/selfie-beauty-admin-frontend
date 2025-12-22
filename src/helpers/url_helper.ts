@@ -110,3 +110,11 @@ export const FEEDBACK_API = {
   BASE: API + "/feedback",
   STATS: API + "/feedback/stats",
 };
+
+// User Preference APIs
+export const USER_PREFERENCE_API = {
+  BASE: API + "/user-preference",
+  ADMIN: API + "/user-preference/admin",
+  TOGGLE: API + "/user-preference/toggle",
+  REORDER: API + "/user-preference/reorder",
+};

@@ -7,6 +7,7 @@ import More from "./more/slice";
 import HomeSettings from "./homeSettings/slice";
 import SubCategory from "./subcategory/slice";
 import AIPhoto from "./aiPhoto/slice";
+import UserPreference from "./userPreference/slice";
 import Support from "./support/slice";
 import Uninstall from "./uninstall/slice";
 import Dashboard from "./dashboard/slice";
@@ -20,6 +21,7 @@ export const appReducer = combineReducers({
   HomeSettings,
   SubCategory,
   AIPhoto,
+  UserPreference,
   Support,
   Uninstall,
   Dashboard,
