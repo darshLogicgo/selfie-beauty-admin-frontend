@@ -92,10 +92,7 @@ export const getMore = () => {
   return api.get(url.MORE_API.BASE);
 };
 
-export const updateMoreStatus = (
-  id: string,
-  data: { isMore: boolean }
-) => {
+export const updateMoreStatus = (id: string, data: { isMore: boolean }) => {
   return api.patch(`${url.MORE_API.UPDATE_STATUS}/${id}`, data);
 };
 
@@ -309,7 +306,8 @@ export const getDashboardStats = () => {
 // ============================================
 // Live Status API Functions
 // ============================================
-const LIVE_STATUS_BASE_URL = "https://logicgoinfotechspaces-beauty-camera-live-status.hf.space";
+const LIVE_STATUS_BASE_URL =
+  "https://logicgoinfotechspaces-beauty-camera-live-status.hf.space";
 const STATIC_TOKEN = "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"; // Static Bearer token - hardcoded, doesn't change
 
 // Category endpoints mapping
@@ -326,11 +324,15 @@ const LIVE_STATUS_ENDPOINTS = {
   bikini_swap: "/api-status-bikini-swap",
 };
 
-export const getLiveStatus = async (filter: string = "all", startDate?: string, endDate?: string) => {
+export const getLiveStatus = async (
+  filter: string = "all",
+  startDate?: string,
+  endDate?: string
+) => {
   const queryParams: Record<string, string> = {
     filter,
   };
-  
+
   // Add date parameters only for custom filter
   if (filter === "custom" && startDate && endDate) {
     queryParams.start_date = startDate;
@@ -338,31 +340,35 @@ export const getLiveStatus = async (filter: string = "all", startDate?: string, 
   }
 
   // Call all endpoints in parallel
-  const promises = Object.entries(LIVE_STATUS_ENDPOINTS).map(async ([categoryKey, endpoint]) => {
-    try {
-      const queryString = new URLSearchParams(queryParams).toString();
-      const url = `${LIVE_STATUS_BASE_URL}${endpoint}${queryString ? `?${queryString}` : ""}`;
-      
-      const response = await axios.get(url, {
-        headers: {
-          Authorization: `Bearer ${STATIC_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-      });
-      
-      return { categoryKey, data: response.data };
-    } catch (error: any) {
-      // Return error data for this category
-      return { 
-        categoryKey, 
-        data: null,
-        error: error.response?.data?.message || "Failed to fetch"
-      };
+  const promises = Object.entries(LIVE_STATUS_ENDPOINTS).map(
+    async ([categoryKey, endpoint]) => {
+      try {
+        const queryString = new URLSearchParams(queryParams).toString();
+        const url = `${LIVE_STATUS_BASE_URL}${endpoint}${
+          queryString ? `?${queryString}` : ""
+        }`;
+
+        const response = await axios.get(url, {
+          headers: {
+            Authorization: `Bearer ${STATIC_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+        });
+
+        return { categoryKey, data: response.data };
+      } catch (error: any) {
+        // Return error data for this category
+        return {
+          categoryKey,
+          data: null,
+          error: error.response?.data?.message || "Failed to fetch",
+        };
+      }
     }
-  });
+  );
 
   const results = await Promise.all(promises);
-  
+
   // Convert array to object with category keys
   const liveStatusData: Record<string, any> = {};
   results.forEach(({ categoryKey, data, error }) => {
