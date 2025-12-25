@@ -11,6 +11,7 @@ import HomeSettings from "@/pages/HomeSettings";
 import AIPhoto from "@/pages/AIPhoto";
 import Trending from "@/pages/Trending";
 import AIWorld from "@/pages/AIWorld";
+import UserPreference from "@/pages/UserPreference";
 import More from "@/pages/More";
 import Support from "@/pages/Support";
 import Uninstall from "@/pages/Uninstall";
@@ -44,6 +45,7 @@ const App = () => (
             <Route path={ADMIN_ROUTES.AI_PHOTO} element={<AIPhoto />} />
             <Route path={ADMIN_ROUTES.TRENDING} element={<Trending />} />
             <Route path={ADMIN_ROUTES.AI_WORLD} element={<AIWorld />} />
+            <Route path={ADMIN_ROUTES.USER_PREFERENCE} element={<UserPreference />} />
             <Route path={ADMIN_ROUTES.SUPPORT} element={<Support />} />
             <Route path={ADMIN_ROUTES.UNINSTALL} element={<Uninstall />} />
           </Route>
