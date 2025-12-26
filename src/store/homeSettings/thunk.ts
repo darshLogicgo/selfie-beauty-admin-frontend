@@ -11,6 +11,7 @@ import {
   reorderHomeSection5,
   reorderHomeSection6,
   reorderHomeSection7,
+  reorderHomeSection8,
   updateHomeSettings,
 } from "../../helpers/backend_helper";
 
@@ -261,6 +262,32 @@ export const reorderHomeSection7Thunk = createAsyncThunk(
     } catch (error: any) {
       const errorMessage =
         error.response?.data?.message || "Failed to reorder section 7";
+      if (errorMessage) {
+        toastError(errorMessage);
+      }
+      return rejectWithValue({
+        status: error.response?.status,
+        message: errorMessage,
+      });
+    }
+  }
+);
+
+export const reorderHomeSection8Thunk = createAsyncThunk(
+  "reorderHomeSection8Thunk",
+  async (
+    data: { subcategories: Array<{ _id: string; section8Order: number }> },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await reorderHomeSection8(data);
+      toastSuccess(
+        response.data?.message || "Section 8 reordered successfully"
+      );
+      return response.data;
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message || "Failed to reorder section 8";
       if (errorMessage) {
         toastError(errorMessage);
       }

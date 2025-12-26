@@ -269,6 +269,12 @@ export const reorderHomeSection7 = (data: {
   return api.patch(url.HOME_API.REORDER_SECTION7, data);
 };
 
+export const reorderHomeSection8 = (data: {
+  subcategories: Array<{ _id: string; section8Order: number }>;
+}) => {
+  return api.patch(url.HOME_API.REORDER_SECTION8, data);
+};
+
 export const updateHomeSettings = (data: {
   section6Title?: string;
   section7Title?: string;

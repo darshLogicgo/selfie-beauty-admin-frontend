@@ -17,6 +17,7 @@ import {
   reorderHomeSection5Thunk,
   reorderHomeSection6Thunk,
   reorderHomeSection7Thunk,
+  reorderHomeSection8Thunk,
   updateHomeSettingsThunk,
 } from "@/store/homeSettings/thunk";
 import { updateSectionItem } from "@/store/homeSettings/slice";
@@ -123,7 +124,7 @@ const HomeSettings: React.FC = () => {
     return Array.from(categoryMap.values());
   }, [data]);
 
-  // Get all unique subcategories for section3, section4, section5
+  // Get all unique subcategories for section3, section4, section5, section8
   const allSubcategories = useMemo(() => {
     const subcategoryMap = new Map();
 
@@ -143,6 +144,13 @@ const HomeSettings: React.FC = () => {
 
     // Add from section5
     data.section5?.forEach((item: any) => {
+      if (!subcategoryMap.has(item._id)) {
+        subcategoryMap.set(item._id, item);
+      }
+    });
+
+    // Add from section8
+    data.section8?.forEach((item: any) => {
       if (!subcategoryMap.has(item._id)) {
         subcategoryMap.set(item._id, item);
       }
@@ -221,6 +229,16 @@ const HomeSettings: React.FC = () => {
   }));
   const section7Selection = (data.section7?.categories || [])
     .filter((item: any) => item.isSection7 === true)
+    .map((item: any) => item._id);
+
+  // Section 8 - Use direct section8 data from API to maintain order (similar to section3)
+  const section8Items = (data.section8 || []).map((item: any) => ({
+    id: item._id,
+    name: item.subcategoryTitle || item.name || "",
+    image: item.img_sqr || item.img_rec || item.video_sqr || "",
+  }));
+  const section8Selection = (data.section8 || [])
+    .filter((item: any) => item.isSection8 === true)
     .map((item: any) => item._id);
 
   // Handle selection changes for each section
@@ -500,6 +518,53 @@ const HomeSettings: React.FC = () => {
     }
   };
 
+  const handleSection8Change = async (ids: (number | string)[]) => {
+    const changedSubcategoriesMap = new Map<
+      string,
+      {
+        _id: string;
+        isSection3?: boolean;
+        isSection4?: boolean;
+        isSection5?: boolean;
+        isSection8?: boolean;
+      }
+    >();
+
+    allSubcategories.forEach((item: any) => {
+      const isSelected = ids.includes(item._id);
+      if (item.isSection8 !== isSelected) {
+        dispatch(
+          updateSectionItem({
+            id: item._id,
+            section: "section8",
+            value: isSelected,
+          })
+        );
+
+        // Add or update in map
+        if (!changedSubcategoriesMap.has(item._id)) {
+          changedSubcategoriesMap.set(item._id, { _id: item._id });
+        }
+        changedSubcategoriesMap.get(item._id)!.isSection8 = isSelected;
+      }
+    });
+
+    // Call API for changed items
+    if (changedSubcategoriesMap.size > 0) {
+      try {
+        await dispatch(
+          toggleHomeSubcategorySectionThunk({
+            subcategories: Array.from(changedSubcategoriesMap.values()),
+          })
+        ).unwrap();
+        // Refresh data after successful update
+        dispatch(getHomeDataThunk());
+      } catch (error) {
+        // Error is already handled by the thunk
+      }
+    }
+  };
+
   // Reorder handlers for each section
   const handleSection1Reorder = async (
     reorderedItems: Array<{ id: number | string; name: string; image: string }>
@@ -620,6 +685,24 @@ const HomeSettings: React.FC = () => {
 
     try {
       await dispatch(reorderHomeSection7Thunk({ categories })).unwrap();
+      // Refresh data after successful reorder
+      dispatch(getHomeDataThunk());
+    } catch (error) {
+      // Error is already handled by the thunk
+    }
+  };
+
+  const handleSection8Reorder = async (
+    reorderedItems: Array<{ id: number | string; name: string; image: string }>
+  ) => {
+    // Map reordered items to backend format with section8Order
+    const subcategories = reorderedItems.map((item, index) => ({
+      _id: String(item.id),
+      section8Order: index + 1,
+    }));
+
+    try {
+      await dispatch(reorderHomeSection8Thunk({ subcategories })).unwrap();
       // Refresh data after successful reorder
       dispatch(getHomeDataThunk());
     } catch (error) {
@@ -832,6 +915,25 @@ const HomeSettings: React.FC = () => {
             selectedIds={section7Selection}
             onSelectionChange={handleSection7Change}
             onReorder={handleSection7Reorder}
+            multiSelect={true}
+            draggable={true}
+            updatingIds={new Set(updatingIds)}
+          />
+        </div>
+
+        {/* Section 8 */}
+        <div className="section-card">
+          <h2 className="text-lg font-semibold text-foreground mb-4">
+            Section 8 - Subcategory Grid
+          </h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Select multiple subcategories. Drag to reorder.
+          </p>
+          <SelectableList
+            items={section8Items}
+            selectedIds={section8Selection}
+            onSelectionChange={handleSection8Change}
+            onReorder={handleSection8Reorder}
             multiSelect={true}
             draggable={true}
             updatingIds={new Set(updatingIds)}

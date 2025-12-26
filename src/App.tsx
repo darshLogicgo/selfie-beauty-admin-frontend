@@ -5,6 +5,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import AdminLayout from "@/components/layout/AdminLayout";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
+import DashboardTest from "@/pages/DashboardTest";
 import Categories from "@/pages/Categories";
 import SubCategories from "@/pages/SubCategories";
 import HomeSettings from "@/pages/HomeSettings";
@@ -38,6 +39,7 @@ const App = () => (
           <Route path="/" element={<Navigate to={ADMIN_ROUTES.DASHBOARD} replace />} />
           <Route element={<AdminLayout />}>
             <Route path={ADMIN_ROUTES.DASHBOARD} element={<Dashboard />} />
+            <Route path={ADMIN_ROUTES.DASHBOARD_TEST} element={<DashboardTest />} />
             <Route path={ADMIN_ROUTES.CATEGORIES} element={<Categories />} />
             <Route path={ADMIN_ROUTES.SUB_CATEGORIES} element={<SubCategories />} />
             <Route path={ADMIN_ROUTES.HOME_SETTINGS} element={<HomeSettings />} />
