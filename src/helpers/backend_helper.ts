@@ -62,10 +62,23 @@ export const updateTrendingStatus = (
   return api.patch(`${url.TRENDING_API.UPDATE_STATUS}/${id}`, data);
 };
 
+export const updateSubcategoryTrendingStatus = (
+  id: string,
+  data: { isTrending: boolean }
+) => {
+  return api.patch(`${url.TRENDING_API.UPDATE_SUBCATEGORY_STATUS}/${id}`, data);
+};
+
 export const reorderTrending = (data: {
   categories: Array<{ _id: string; trendingOrder: number }>;
 }) => {
   return api.patch(url.TRENDING_API.REORDER, data);
+};
+
+export const reorderTrendingSubcategories = (data: {
+  subcategories: Array<{ _id: string; trendingOrder: number }>;
+}) => {
+  return api.patch(url.TRENDING_API.REORDER_SUBCATEGORIES, data);
 };
 
 // ============================================

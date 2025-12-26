@@ -55,7 +55,9 @@ export const TRENDING_API = {
   BASE: API + "/trending",
   LIST: API + "/trending/list",
   UPDATE_STATUS: API + "/trending/toggle-trending",
+  UPDATE_SUBCATEGORY_STATUS: API + "/trending/toggle-trending-subcategory",
   REORDER: API + "/trending/reorder",
+  REORDER_SUBCATEGORIES: API + "/trending/reorder-subcategories",
 };
 
 // AI World APIs
