@@ -14,6 +14,7 @@ import {
   PackageX,
   MoreHorizontal,
   Heart,
+  TestTube,
 } from "lucide-react";
 import { useAppDispatch } from "@/store/hooks";
 import { logout } from "@/store/auth/slice";
@@ -22,6 +23,7 @@ import { AUTH_ROUTES, ADMIN_ROUTES } from "@/constants/routes";
 
 const menuItems = [
   { path: ADMIN_ROUTES.DASHBOARD, icon: LayoutDashboard, label: "Dashboard" },
+  // { path: ADMIN_ROUTES.DASHBOARD_TEST, icon: TestTube, label: "Dashboard Test" },
   { path: ADMIN_ROUTES.CATEGORIES, icon: FolderOpen, label: "Categories" },
   { path: ADMIN_ROUTES.SUB_CATEGORIES, icon: Layers, label: "Subcategories" },
   { path: ADMIN_ROUTES.HOME_SETTINGS, icon: Home, label: "Home" },

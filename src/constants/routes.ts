@@ -10,6 +10,7 @@ export const AUTH_ROUTES = {
 // Admin Routes
 export const ADMIN_ROUTES = {
   DASHBOARD: "/dashboard",
+  DASHBOARD_TEST: "/dashboard-test",
   CATEGORIES: "/categories",
   SUB_CATEGORIES: "/subcategories",
   HOME_SETTINGS: "/home-settings",
