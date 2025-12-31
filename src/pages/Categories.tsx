@@ -47,6 +47,19 @@ const Categories: React.FC = () => {
     dispatch(getCategoryThunk(undefined));
   }, [dispatch]);
 
+  const isUsableMediaSrc = (src: unknown) => {
+    if (typeof src !== 'string') return false;
+    const s = src.trim();
+    if (!s || s === 'null' || s === 'undefined') return false;
+    return (
+      s.startsWith('http://') ||
+      s.startsWith('https://') ||
+      s.startsWith('blob:') ||
+      s.startsWith('data:') ||
+      s.startsWith('/')
+    );
+  };
+
   // Map API response to Category type
   useEffect(() => {
     if (categoriesData && categoriesData.length > 0) {
@@ -54,6 +67,9 @@ const Categories: React.FC = () => {
         id: parseInt(item._id?.slice(-8) || String(index + 1), 16) || index + 1, // Convert _id to number or use index
         name: item.name || '',
         prompt: item.prompt || '',
+        country: (item.country ?? '') || '',
+        android_appVersion: (item.android_appVersion ?? '') || '',
+        ios_appVersion: (item.ios_appVersion ?? '') || '',
         imageSquare: (item.img_sqr && item.img_sqr !== null) ? item.img_sqr : '',
         imageRectangle: (item.img_rec && item.img_rec !== null) ? item.img_rec : '',
         videoSquare: (item.video_sqr && item.video_sqr !== null) ? item.video_sqr : '',
@@ -124,9 +140,9 @@ const Categories: React.FC = () => {
       };
       reader.readAsDataURL(file);
     } else {
-      // Store file name and create preview URL (works for any file type)
+      // Store blob URL and create preview URL
       const fileUrl = URL.createObjectURL(file);
-      formik.setFieldValue(field, file.name);
+      formik.setFieldValue(field, fileUrl);
       setVideoPreviews(prev => ({ ...prev, [field]: fileUrl }));
     }
 
@@ -152,6 +168,9 @@ const Categories: React.FC = () => {
       values: {
         name: '',
         prompt: '',
+        country: '',
+        android_appVersion: '',
+        ios_appVersion: '',
         imageSquare: '',
         imageRectangle: '',
         videoSquare: '',
@@ -180,23 +199,27 @@ const Categories: React.FC = () => {
   const handleOpenForm = (category: Category | undefined, formik: any) => {
     if (category) {
       setEditingCategory(category);
-      formik.setValues({
-        name: category.name,
-        prompt: (category as any).prompt || '',
-        imageSquare: category.imageSquare,
-        imageRectangle: category.imageRectangle,
-        videoSquare: category.videoSquare,
-        videoRectangle: category.videoRectangle,
-        status: category.status,
+
+      const freshFormik = formik;
+      freshFormik.setValues({
+        name: category.name || '',
+        prompt: category.prompt || '',
+        country: category.country || '',
+        android_appVersion: category.android_appVersion || '',
+        ios_appVersion: category.ios_appVersion || '',
+        imageSquare: category.imageSquare || '',
+        imageRectangle: category.imageRectangle || '',
+        videoSquare: category.videoSquare || '',
+        videoRectangle: category.videoRectangle || '',
+        status: category.status !== undefined ? category.status : true,
       });
-      // Reset file selections when editing (existing data is URL/base64)
+
       setSelectedFiles({
         imageSquare: null,
         imageRectangle: null,
         videoSquare: null,
         videoRectangle: null,
       });
-      // Clean up any existing video preview URLs
       if (videoPreviews.videoSquare) {
         URL.revokeObjectURL(videoPreviews.videoSquare);
       }
@@ -210,6 +233,7 @@ const Categories: React.FC = () => {
     } else {
       resetForm(formik);
     }
+
     setIsFormOpen(true);
   };
 
@@ -223,6 +247,9 @@ const Categories: React.FC = () => {
       videoSquare: '',
       videoRectangle: '',
       status: true,
+      country: '',
+      android_appVersion: '',
+      ios_appVersion: '',
     },
     validationSchema: categorySchema,
     onSubmit: async (values) => {
@@ -236,6 +263,17 @@ const Categories: React.FC = () => {
           formDataToSend.append('prompt', values.prompt.trim());
         }
         formDataToSend.append('status', values.status.toString());
+        
+        // Add new country and app version fields
+        if (values.country && values.country.trim()) {
+          formDataToSend.append('country', values.country.trim());
+        }
+        if (values.android_appVersion && values.android_appVersion.trim()) {
+          formDataToSend.append('android_appVersion', values.android_appVersion.trim());
+        }
+        if (values.ios_appVersion && values.ios_appVersion.trim()) {
+          formDataToSend.append('ios_appVersion', values.ios_appVersion.trim());
+        }
         
         // Handle imageSquare: new file, removed, or keep existing
         if (selectedFiles.imageSquare) {
@@ -296,6 +334,17 @@ const Categories: React.FC = () => {
           formDataToSend.append('prompt', values.prompt.trim());
         }
         formDataToSend.append('status', values.status.toString());
+        
+        // Add new country and app version fields
+        if (values.country && values.country.trim()) {
+          formDataToSend.append('country', values.country.trim());
+        }
+        if (values.android_appVersion && values.android_appVersion.trim()) {
+          formDataToSend.append('android_appVersion', values.android_appVersion.trim());
+        }
+        if (values.ios_appVersion && values.ios_appVersion.trim()) {
+          formDataToSend.append('ios_appVersion', values.ios_appVersion.trim());
+        }
         
         // Add image files
         if (selectedFiles.imageSquare) {
@@ -486,7 +535,7 @@ const Categories: React.FC = () => {
       key: 'videoSquare',
       header: 'Video Square',
       render: (item: Category & { _id?: string }) => (
-        item.videoSquare ? (
+        isUsableMediaSrc(item.videoSquare) ? (
           <div className="flex justify-center">
             <TooltipProvider>
               <Tooltip>
@@ -498,7 +547,7 @@ const Categories: React.FC = () => {
                       controls={false}
                       muted
                       onMouseEnter={(e) => {
-                        e.currentTarget.play();
+                        void e.currentTarget.play().catch(() => undefined);
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.pause();
@@ -506,7 +555,7 @@ const Categories: React.FC = () => {
                       }}
                       onClick={(e) => {
                         if (e.currentTarget.paused) {
-                          e.currentTarget.play();
+                          void e.currentTarget.play().catch(() => undefined);
                         } else {
                           e.currentTarget.pause();
                         }
@@ -529,7 +578,7 @@ const Categories: React.FC = () => {
       key: 'videoRectangle',
       header: 'Video Rectangle',
       render: (item: Category & { _id?: string }) => (
-        item.videoRectangle ? (
+        isUsableMediaSrc(item.videoRectangle) ? (
           <div className="flex justify-center">
             <TooltipProvider>
               <Tooltip>
@@ -541,7 +590,7 @@ const Categories: React.FC = () => {
                       controls={false}
                       muted
                       onMouseEnter={(e) => {
-                        e.currentTarget.play();
+                        void e.currentTarget.play().catch(() => undefined);
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.pause();
@@ -549,7 +598,7 @@ const Categories: React.FC = () => {
                       }}
                       onClick={(e) => {
                         if (e.currentTarget.paused) {
-                          e.currentTarget.play();
+                          void e.currentTarget.play().catch(() => undefined);
                         } else {
                           e.currentTarget.pause();
                         }
@@ -600,7 +649,9 @@ const Categories: React.FC = () => {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => handleOpenForm(item, formik)}
+            onClick={() => {
+            handleOpenForm(item, formik);
+          }}
             className="h-8 w-8 text-muted-foreground hover:text-primary"
           >
             <Pencil className="w-4 h-4" />
@@ -729,6 +780,52 @@ const Categories: React.FC = () => {
               {formik.touched.prompt && formik.errors.prompt && (
                 <p className="text-xs text-destructive mt-1">{formik.errors.prompt}</p>
               )}
+            </div>
+
+            {/* Country and App Version Fields */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="country" className="text-sm font-semibold">
+                  Country
+                </Label>
+                <Input
+                  id="country"
+                  name="country"
+                  value={formik.values.country || ''}
+                  onChange={formik.handleChange}
+                  onBlur={formik.handleBlur}
+                  placeholder="Enter country "
+                  className="h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="android_appVersion" className="text-sm font-semibold">
+                  Android App Version
+                </Label>
+                <Input
+                  id="android_appVersion"
+                  name="android_appVersion"
+                  value={formik.values.android_appVersion || ''}
+                  onChange={formik.handleChange}
+                  onBlur={formik.handleBlur}
+                  placeholder="Enter Android version"
+                  className="h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ios_appVersion" className="text-sm font-semibold">
+                  iOS App Version
+                </Label>
+                <Input
+                  id="ios_appVersion"
+                  name="ios_appVersion"
+                  value={formik.values.ios_appVersion || ''}
+                  onChange={formik.handleChange}
+                  onBlur={formik.handleBlur}
+                  placeholder="Enter iOS version "
+                  className="h-11"
+                />
+              </div>
             </div>
 
             {/* Image Fields Grid */}
@@ -882,12 +979,17 @@ const Categories: React.FC = () => {
                   {formik.values.videoSquare && (
                     <div className="mt-2 relative inline-block">
                       <div className="relative">
+                        {(() => {
+                          const src = videoPreviews.videoSquare || formik.values.videoSquare;
+                          if (!isUsableMediaSrc(src)) return null;
+                          return (
                         <video
-                          src={videoPreviews.videoSquare || formik.values.videoSquare}
+                          src={src}
                           className="w-48 h-48 rounded-lg object-cover border-2 border-border bg-black"
                           controls 
-                          autoPlay
                         />
+                          );
+                        })()}
                         <Button
                           type="button"
                           variant="destructive"
@@ -945,12 +1047,17 @@ const Categories: React.FC = () => {
                   {formik.values.videoRectangle && (
                     <div className="mt-2 relative inline-block">
                       <div className="relative">
+                        {(() => {
+                          const src = videoPreviews.videoRectangle || formik.values.videoRectangle;
+                          if (!isUsableMediaSrc(src)) return null;
+                          return (
                         <video
-                          src={videoPreviews.videoRectangle || formik.values.videoRectangle}
+                          src={src}
                           className="w-64 h-36 rounded-lg object-cover border-2 border-border bg-black"
                           controls
-                          autoPlay
                         />
+                          );
+                        })()}
                         <Button
                           type="button"
                           variant="destructive"

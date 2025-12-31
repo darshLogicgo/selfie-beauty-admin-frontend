@@ -362,6 +362,91 @@ const LIVE_STATUS_ENDPOINTS = {
   polaroid: "/api-status-polaroid",
   bikini_swap: "/api-status-bikini-swap",
 };
+// ============================================
+// Dashboard – Feature Performance API
+// ============================================
+
+export const getFeaturePerformance = async () => {
+  try {
+    const response = await api.get(url.DASHBOARD_API.FEATURE_PERFORMANCE);
+
+    const json = response?.data || {};
+
+    // Use the new API response structure
+    if (json.data?.feature_performance) {
+      const features = json.data.feature_performance.map((f: any) => ({
+        feature: f.feature,
+        uses: f.uses,
+        color: f.color,
+      }));
+
+      // Sort by uses descending and filter out zero usage
+      const sortedFeatures = features
+        .filter((f) => f.uses > 0)
+        .sort((a, b) => b.uses - a.uses);
+
+      // Return features with additional metrics
+      const result = {
+        features: sortedFeatures,
+        totalUses: json.data.totalUses || sortedFeatures.reduce((sum, f) => sum + f.uses, 0),
+        paywallHits: json.data.paywallHits || 0,
+        usageRate: json.data.usageRate || 0,
+        conversionRate: json.data.conversionRate || 0,
+      };
+      
+      return result;
+    }
+
+    // Fallback to empty structure if new API structure not found
+    return {
+      features: [],
+      totalUses: 0,
+      paywallHits: 0,
+      usageRate: 0,
+      conversionRate: 0,
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const getDeviceDistribution = async () => {
+  try {
+    const response = await api.get(url.DASHBOARD_API.DEVICE_DISTRIBUTION);
+
+    const json = response?.data || {};
+
+    // Use the API response structure
+    if (json.data) {
+      const result = {
+        ios: {
+          count: json.data.ios?.count || 0,
+          percentage: json.data.ios?.percentage || 0,
+        },
+        android: {
+          count: json.data.android?.count || 0,
+          percentage: json.data.android?.percentage || 0,
+        },
+        other: {
+          count: json.data.other?.count || 0,
+          percentage: json.data.other?.percentage || 0,
+        },
+        total: json.data.total || 0,
+      };
+      
+      return result;
+    } else {
+      return {
+        ios: { count: 0, percentage: 0 },
+        android: { count: 0, percentage: 0 },
+        other: { count: 0, percentage: 0 },
+        total: 0,
+      };
+    }
+  } catch (error) {
+    throw error;
+  }
+};
 
 export const getLiveStatus = async (
   filter: string = "all",
@@ -371,44 +456,53 @@ export const getLiveStatus = async (
   const queryParams: Record<string, string> = {
     filter,
   };
+  if (startDate) queryParams.startDate = startDate;
+  if (endDate) queryParams.endDate = endDate;
 
-  // Add date parameters only for custom filter
-  if (filter === "custom" && startDate && endDate) {
-    queryParams.start_date = startDate;
-    queryParams.end_date = endDate;
-  }
+  return api.get(`${url.DASHBOARD_API.LIVE_STATUS}?${new URLSearchParams(queryParams)}`);
+};
 
-  // Call all endpoints in parallel
-  const promises = Object.entries(LIVE_STATUS_ENDPOINTS).map(
-    async ([categoryKey, endpoint]) => {
-      try {
-        const queryString = new URLSearchParams(queryParams).toString();
-        const url = `${LIVE_STATUS_BASE_URL}${endpoint}${
-          queryString ? `?${queryString}` : ""
-        }`;
+// ============================================
+// Live Status API Functions (External)
+// ============================================
 
-        const response = await axios.get(url, {
-          headers: {
-            Authorization: `Bearer ${STATIC_TOKEN}`,
-            "Content-Type": "application/json",
-          },
-        });
+export const getExternalLiveStatus = async (
+  filter: string = "all",
+  startDate?: string,
+  endDate?: string
+) => {
+  const queryParams: Record<string, string> = {
+    filter,
+  };
+  if (startDate) queryParams.startDate = startDate;
+  if (endDate) queryParams.endDate = endDate;
 
-        return { categoryKey, data: response.data };
-      } catch (error: any) {
-        // Return error data for this category
-        return {
-          categoryKey,
-          data: null,
-          error: error.response?.data?.message || "Failed to fetch",
-        };
-      }
+  const promises = Object.entries(LIVE_STATUS_ENDPOINTS).map(async ([categoryKey, endpoint]) => {
+    try {
+      const queryString = new URLSearchParams(queryParams).toString();
+      const fullUrl = `${LIVE_STATUS_BASE_URL}${endpoint}${
+        queryString ? `?${queryString}` : ""
+      }`;
+
+      const response = await axios.get(fullUrl, {
+        headers: {
+          Authorization: `Bearer ${STATIC_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      return { categoryKey, data: response.data };
+    } catch (error: any) {
+      return {
+        categoryKey,
+        data: null,
+        error: error.response?.data?.message || "Failed to fetch",
+      };
     }
-  );
+  });
 
   const results = await Promise.all(promises);
 
-  // Convert array to object with category keys
   const liveStatusData: Record<string, any> = {};
   results.forEach(({ categoryKey, data, error }) => {
     if (data) {

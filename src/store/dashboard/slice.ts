@@ -15,6 +15,8 @@ interface DashboardStats {
   totalUsers: number;
   subscribedUsers: number;
   mostUsedCategories: MostUsedCategory[];
+  paywallHits?: number;
+  paywall_hits?: number;
 }
 
 interface LiveStatusCategory {

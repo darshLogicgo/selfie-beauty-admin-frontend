@@ -7,6 +7,13 @@ export interface Category {
   videoRectangle: string;
   status: boolean;
   order: number;
+  prompt?: string;
+  country?: string;
+  android_appVersion?: string;
+  ios_appVersion?: string;
+  _id?: string; // For MongoDB _id
+  isPremium?: boolean;
+  imageCount?: number;
 }
 
 export interface SubCategory {
@@ -17,6 +24,9 @@ export interface SubCategory {
   status: boolean;
   order: number;
   images: string[];
+  country?: string;
+  android_appVersion?: string;
+  ios_appVersion?: string;
 }
 
 export interface User {

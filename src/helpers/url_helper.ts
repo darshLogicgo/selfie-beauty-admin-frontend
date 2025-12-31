@@ -84,6 +84,9 @@ export const DASHBOARD_API = {
   BASE: API + "/dashboard",
   STATS: API + "/dashboard/stats",
   ANALYTICS: API + "/dashboard/analytics",
+  FEATURE_PERFORMANCE: API + "/dashboard/feature-performance",
+  DEVICE_DISTRIBUTION: API + "/dashboard/device-distribution",
+  LIVE_STATUS: API + "/dashboard/live-status",
 };
 
 // Home APIs

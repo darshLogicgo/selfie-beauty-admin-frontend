@@ -34,6 +34,7 @@ import {
   getDashboardStatsThunk,
   getLiveStatusThunk,
 } from "@/store/dashboard/thunk";
+import { getFeaturePerformance, getDeviceDistribution } from "@/helpers/backend_helper";
 import {
   Select,
   SelectContent,
@@ -310,11 +311,18 @@ const FeatureRevenueDonut: React.FC = () => {
     return () => root.dispose();
   }, []);
 
-  return <div ref={chartRef} style={{ width: "100%", height: "260px" }} />;
+  return <div ref={chartRef} style={{ width: '100%', height: '260px' }} />;
+}
+// add a small feature data type
+type FeatureData = {
+	feature: string;
+	uses: number;
+	color?: string;
 };
 
 // Horizontal Bar Chart for Feature Performance
-const FeaturePerformanceChart: React.FC = () => {
+// changed: accept optional `data` prop and use it if provided
+const FeaturePerformanceChart: React.FC<{ data?: FeatureData[] }> = ({ data }) => {
   const chartRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
@@ -376,24 +384,16 @@ const FeaturePerformanceChart: React.FC = () => {
       tooltipText: "{feature}: {uses}",
     });
 
-    const data = [
-      { feature: "Faceswap", uses: 1330, color: am5.color("#3b82f6") },
-      { feature: "AI Enhancer", uses: 18457, color: am5.color("#8b5cf6") },
-      {
-        feature: "Background Remover",
-        uses: 8920,
-        color: am5.color("#10b981"),
-      },
-      { feature: "Photo Editor", uses: 12450, color: am5.color("#f59e0b") },
-    ];
+    // Always render chart with dynamic data - use empty array if no data
+    const chartData = data && data.length ? data : [];
 
-    yAxis.data.setAll(data);
-    series.data.setAll(data);
+    yAxis.data.setAll(chartData as any);
+    series.data.setAll(chartData as any);
 
-    data.forEach((item, index) => {
+    chartData.forEach((item, index) => {
       const column = series.dataItems[index].get("graphics");
       if (column) {
-        column.set("fill", item.color);
+        column.set("fill", am5.color(item.color || "#3b82f6"));
       }
     });
 
@@ -401,7 +401,7 @@ const FeaturePerformanceChart: React.FC = () => {
     chart.appear(1000, 100);
 
     return () => root.dispose();
-  }, []);
+  }, [data]);
 
   return <div ref={chartRef} style={{ width: "100%", height: "240px" }} />;
 };
@@ -571,7 +571,7 @@ const SubscriptionGrowthChart: React.FC = () => {
 };
 
 // Device Distribution Pie Chart
-const DeviceDistributionChart: React.FC = () => {
+const DeviceDistributionChart: React.FC<{ data: any }> = ({ data }) => {
   const chartRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
@@ -583,6 +583,10 @@ const DeviceDistributionChart: React.FC = () => {
     const chart = root.container.children.push(
       am5percent.PieChart.new(root, {
         layout: root.horizontalLayout,
+        paddingLeft: 28,
+        paddingRight: 28,
+        paddingTop: 10,
+        paddingBottom: 10,
       })
     );
 
@@ -600,30 +604,59 @@ const DeviceDistributionChart: React.FC = () => {
     });
 
     series.labels.template.setAll({
-      fontSize: 12,
-      text: "{category}\n{value}",
+      fontSize: 9,
+      fontWeight: "400",
+      text: "{category}",
+      oversizedBehavior: "wrap",
+      maxWidth: 70,
+      textAlign: "center",
+      fill: am5.color(0x111827),
     });
 
-    const data = [
-      { category: "Android", value: 18450, color: am5.color("#34d399") },
-      { category: "iOS", value: 14956, color: am5.color("#3b82f6") },
-    ];
+    // Use dynamic data from API
+    const chartData = [
+      { category: "Android", value: data.android.count, color: am5.color("#34d399") },
+      { category: "iOS", value: data.ios.count, color: am5.color("#3b82f6") },
+    ].filter(item => item.value > 0); // Only show items with data
 
-    series.data.setAll(data);
+    // Ensure minimum visibility for small segments
+    const adjustedData = chartData.map(item => ({
+      ...item,
+      value: Math.max(item.value, Math.max(1, chartData.reduce((sum, d) => sum + d.value, 0) * 0.05))
+    }));
 
-    data.forEach((item, index) => {
+    series.data.setAll(adjustedData);
+
+    adjustedData.forEach((item, index) => {
       const slice = series.dataItems[index].get("slice");
       if (slice) {
         slice.set("fill", item.color);
+        slice.set("strokeOpacity", 0);
+        slice.set("strokeWidth", 2);
+        slice.set("stroke", am5.color(0xffffff));
       }
+    });
+
+    series.ticks.template.setAll({
+      strokeOpacity: 0.25,
+      stroke: am5.color(0x9ca3af),
+      length: 10,
+    });
+
+    // Add tooltips with better formatting
+    series.slices.template.setAll({
+      strokeOpacity: 0,
+      strokeWidth: 2,
+      stroke: am5.color(0xffffff),
+      tooltipText: "{category}: {value} users ({valuePercentTotal.formatNumber('0.1')}%)",
     });
 
     series.appear(1000, 100);
 
     return () => root.dispose();
-  }, []);
+  }, [data]);
 
-  return <div ref={chartRef} style={{ width: "100%", height: "200px" }} />;
+  return <div ref={chartRef} style={{ width: "100%", height: "260px" }} />;
 };
 
 // App Version Distribution Chart
@@ -820,15 +853,115 @@ const DashboardTest: React.FC = () => {
   const [filter, setFilter] = useState<string>("all");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+  const [featurePerformanceData, setFeaturePerformanceData] = useState<
+    FeatureData[]
+  >([]);
+  const [isLoadingFeatures, setIsLoadingFeatures] = useState(false);
+  const [featurePerformanceMetrics, setFeaturePerformanceMetrics] = useState<{
+    totalUses: number;
+    paywallHits: number;
+    usageRate: number;
+    conversionRate: number;
+  }>({
+    totalUses: 0,
+    paywallHits: 0,
+    usageRate: 0,
+    conversionRate: 0,
+  });
+  
+  // Device distribution state
+  const [deviceDistributionData, setDeviceDistributionData] = useState<{
+    ios: { count: number; percentage: number };
+    android: { count: number; percentage: number };
+    other: { count: number; percentage: number };
+    total: number;
+  }>({
+    ios: { count: 0, percentage: 0 },
+    android: { count: 0, percentage: 0 },
+    other: { count: 0, percentage: 0 },
+    total: 0,
+  });
+  const [isLoadingDevices, setIsLoadingDevices] = useState(false);
 
   const today = new Date().toISOString().split("T")[0];
 
   useEffect(() => {
     dispatch(getDashboardStatsThunk());
-    if (filter !== "custom") {
-      dispatch(getLiveStatusThunk({ filter }));
-    }
+    // if (filter !== "custom") {
+    //   dispatch(getLiveStatusThunk({ filter }));
+    // }
   }, [dispatch, filter]);
+
+  // fetch feature performance data using the API helper
+  useEffect(() => {
+    const loadFeaturePerformance = async () => {
+      setIsLoadingFeatures(true);
+      try {
+        const result = await getFeaturePerformance();
+        
+        // Handle both old format (array) and new format (object with properties)
+        if (Array.isArray(result)) {
+          // Old format - direct array
+          const parsed = result.map((f) => ({
+            feature: f.feature,
+            uses: f.uses,
+            color: f.color || undefined,
+          }));
+          setFeaturePerformanceData(parsed);
+          const totalUses = parsed.reduce((s, f) => s + (f.uses || 0), 0);
+          setFeaturePerformanceMetrics({
+            totalUses,
+            paywallHits: 0,
+            usageRate: 0,
+            conversionRate: 0,
+          });
+        } else {
+          // New format - object with features and metrics
+          const parsed = result.features.map((f: any) => ({
+            feature: f.feature,
+            uses: f.uses,
+            color: f.color || undefined,
+          }));
+          setFeaturePerformanceData(parsed);
+          setFeaturePerformanceMetrics({
+            totalUses: Number(result.totalUses || 0),
+            paywallHits: Number(result.paywallHits || 0),
+            usageRate: Number(result.usageRate || 0),
+            conversionRate: Number(result.conversionRate || 0),
+          });
+        }
+      } catch (error) {
+        // Keep empty array to use default data
+      } finally {
+        setIsLoadingFeatures(false);
+      }
+    };
+
+    loadFeaturePerformance();
+  }, []);
+
+  // fetch device distribution data using the API helper
+  useEffect(() => {
+    const loadDeviceDistribution = async () => {
+      setIsLoadingDevices(true);
+      try {
+        const result = await getDeviceDistribution();
+        setDeviceDistributionData(result);
+      } catch (error) {
+        // Keep default empty data
+      } finally {
+        setIsLoadingDevices(false);
+      }
+    };
+
+    loadDeviceDistribution();
+  }, []);
+
+  // derived values for the UI under Feature Performance - trust API metrics
+  const totalUses = featurePerformanceMetrics.totalUses;
+  const paywallHitsVal = featurePerformanceMetrics.paywallHits;
+  const usageRate = featurePerformanceMetrics.usageRate;
+  const paywallConversionRate = featurePerformanceMetrics.conversionRate;
 
   const handleFilterChange = (newFilter: string) => {
     setFilter(newFilter);
@@ -1125,41 +1258,48 @@ const DashboardTest: React.FC = () => {
               </h2>
               <p className="text-sm text-gray-500">Usage across features</p>
             </div>
-            <button className="px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 rounded-lg transition-colors">
-              AI Enhancer →
-            </button>
+          
           </div>
-          <FeaturePerformanceChart />
+          {isLoadingFeatures ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <span className="ml-2 text-gray-600">Loading feature data...</span>
+            </div>
+          ) : (
+            <FeaturePerformanceChart data={featurePerformanceData} />
+          )}
           <div className="grid grid-cols-2 gap-4 mt-6">
             <div className="p-4 bg-gray-50 rounded-lg">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs text-gray-600">Total Uses</span>
                 <span className="text-sm font-semibold text-gray-900">
-                  16,980
+                  {totalUses.toLocaleString()}
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
                   className="bg-blue-600 h-2 rounded-full"
-                  style={{ width: "92%" }}
+                  style={{ width: `${usageRate}%` }}
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-1">92% usage rate</p>
+              <p className="text-xs text-gray-500 mt-1">{usageRate}% usage rate</p>
             </div>
             <div className="p-4 bg-gray-50 rounded-lg">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs text-gray-600">Paywall Hits</span>
                 <span className="text-sm font-semibold text-gray-900">
-                  16,980
+                  {paywallHitsVal.toLocaleString()}
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
                   className="bg-emerald-600 h-2 rounded-full"
-                  style={{ width: "82%" }}
+                  style={{ width: `${paywallConversionRate}%` }}
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-1">82% conversion</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {paywallConversionRate}% conversion
+              </p>
             </div>
           </div>
         </div>
@@ -1293,28 +1433,47 @@ const DashboardTest: React.FC = () => {
               <p className="text-sm text-gray-500">Platform breakdown</p>
             </div>
           </div>
-          <DeviceDistributionChart />
+          {isLoadingDevices ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <span className="ml-2 text-gray-600">Loading device data...</span>
+            </div>
+          ) : (
+            <DeviceDistributionChart data={deviceDistributionData} />
+          )}
           <div className="space-y-4 mt-6 pt-6 border-t border-gray-100">
             <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
               <div className="flex items-center gap-3">
                 <Smartphone className="w-5 h-5 text-green-600" />
                 <div>
                   <p className="text-sm font-semibold text-gray-900">Android</p>
-                  <p className="text-xs text-gray-500">18,450 users</p>
+                  <p className="text-xs text-gray-500">{deviceDistributionData.android.count.toLocaleString()} users</p>
                 </div>
               </div>
-              <span className="text-sm font-bold text-green-600">55.2%</span>
+              <span className="text-sm font-bold text-green-600">{deviceDistributionData.android.percentage}%</span>
             </div>
             <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
               <div className="flex items-center gap-3">
                 <Monitor className="w-5 h-5 text-blue-600" />
                 <div>
                   <p className="text-sm font-semibold text-gray-900">iOS</p>
-                  <p className="text-xs text-gray-500">14,956 users</p>
+                  <p className="text-xs text-gray-500">{deviceDistributionData.ios.count.toLocaleString()} users</p>
                 </div>
               </div>
-              <span className="text-sm font-bold text-blue-600">44.8%</span>
+              <span className="text-sm font-bold text-blue-600">{deviceDistributionData.ios.percentage}%</span>
             </div>
+            {deviceDistributionData.other.count > 0 && (
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <Globe className="w-5 h-5 text-gray-600" />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">Other</p>
+                    <p className="text-xs text-gray-500">{deviceDistributionData.other.count.toLocaleString()} users</p>
+                  </div>
+                </div>
+                <span className="text-sm font-bold text-gray-600">{deviceDistributionData.other.percentage}%</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1630,3 +1789,5 @@ const DashboardTest: React.FC = () => {
 };
 
 export default DashboardTest;
+
+

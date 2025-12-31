@@ -82,6 +82,9 @@ interface ApiSubCategory {
   aiWorldOrder: number;
   isPremium?: boolean;
   order: number;
+  country?: string;
+  android_appVersion?: string;
+  ios_appVersion?: string;
   createdAt: string;
   updatedAt: string;
   __v: number;
@@ -95,6 +98,9 @@ const subCategorySchema = yup.object().shape({
     .trim()
     .required("Subcategory name is required")
     .max(100, "Subcategory name must be at most 100 characters"),
+  country: yup.string().trim().optional(),
+  android_appVersion: yup.string().trim().optional(),
+  ios_appVersion: yup.string().trim().optional(),
   img_sqr: yup.mixed<File | string>().optional(),
   img_rec: yup.mixed<File | string>().optional(),
   video_sqr: yup.mixed<File | string>().optional(),
@@ -127,6 +133,9 @@ const mapApiToComponent = (apiData: ApiSubCategory[]): SubCategoryWithId[] => {
     video_rec: item.video_rec || "",
     categoryId: item.categoryId, // Store categoryId
     isPremium: item.isPremium ?? false,
+    country: (item.country ?? "") || "",
+    android_appVersion: (item.android_appVersion ?? "") || "",
+    ios_appVersion: (item.ios_appVersion ?? "") || "",
   }));
 };
 
@@ -195,6 +204,19 @@ const SubCategories: React.FC = () => {
     dispatch(getCategoryTitlesThunk());
   }, [dispatch]);
 
+  const isUsableMediaSrc = (src: unknown) => {
+    if (typeof src !== "string") return false;
+    const s = src.trim();
+    if (!s || s === "null" || s === "undefined") return false;
+    return (
+      s.startsWith("http://") ||
+      s.startsWith("https://") ||
+      s.startsWith("blob:") ||
+      s.startsWith("data:") ||
+      s.startsWith("/")
+    );
+  };
+
   const [selectedFiles, setSelectedFiles] = useState({
     img_sqr: null as File | null,
     img_rec: null as File | null,
@@ -249,9 +271,9 @@ const SubCategories: React.FC = () => {
       };
       reader.readAsDataURL(file);
     } else {
-      // Store file name and create preview URL (works for any file type)
+      // Store blob URL and create preview URL
       const fileUrl = URL.createObjectURL(file);
-      formik.setFieldValue(field, file.name);
+      formik.setFieldValue(field, fileUrl);
       setVideoPreviews((prev) => ({ ...prev, [field]: fileUrl }));
     }
 
@@ -277,6 +299,9 @@ const SubCategories: React.FC = () => {
       values: {
         categoryId: "",
         name: "",
+        country: "",
+        android_appVersion: "",
+        ios_appVersion: "",
         img_sqr: "",
         img_rec: "",
         video_sqr: "",
@@ -311,6 +336,9 @@ const SubCategories: React.FC = () => {
       formik.setValues({
         categoryId: (subCategory as any).categoryId || "",
         name: subCategory.name,
+        country: subCategory.country || "",
+        android_appVersion: subCategory.android_appVersion || "",
+        ios_appVersion: subCategory.ios_appVersion || "",
         img_sqr: subCategory.img_sqr || "",
         img_rec: subCategory.img_rec || "",
         video_sqr: subCategory.video_sqr || "",
@@ -396,6 +424,9 @@ const SubCategories: React.FC = () => {
     initialValues: {
       categoryId: "",
       name: "",
+      country: "",
+      android_appVersion: "",
+      ios_appVersion: "",
       img_sqr: "",
       img_rec: "",
       video_sqr: "",
@@ -411,6 +442,16 @@ const SubCategories: React.FC = () => {
         // Add text fields
         formDataToSend.append("subcategoryTitle", values.name.trim());
         formDataToSend.append("status", values.status.toString());
+
+        if (values.country && values.country.trim()) {
+          formDataToSend.append("country", values.country.trim());
+        }
+        if (values.android_appVersion && values.android_appVersion.trim()) {
+          formDataToSend.append("android_appVersion", values.android_appVersion.trim());
+        }
+        if (values.ios_appVersion && values.ios_appVersion.trim()) {
+          formDataToSend.append("ios_appVersion", values.ios_appVersion.trim());
+        }
 
         // Always send categoryId when updating (required by validation)
         // Use form value or fallback to existing subcategory's categoryId
@@ -480,6 +521,16 @@ const SubCategories: React.FC = () => {
         // Add required fields
         formDataToSend.append("categoryId", values.categoryId);
         formDataToSend.append("subcategoryTitle", values.name.trim());
+
+        if (values.country && values.country.trim()) {
+          formDataToSend.append("country", values.country.trim());
+        }
+        if (values.android_appVersion && values.android_appVersion.trim()) {
+          formDataToSend.append("android_appVersion", values.android_appVersion.trim());
+        }
+        if (values.ios_appVersion && values.ios_appVersion.trim()) {
+          formDataToSend.append("ios_appVersion", values.ios_appVersion.trim());
+        }
 
         // Add image files
         if (selectedFiles.img_sqr) {
@@ -816,7 +867,7 @@ const SubCategories: React.FC = () => {
       key: "video_sqr",
       header: "Video Square",
       render: (item: SubCategoryWithId) =>
-        item.video_sqr ? (
+        isUsableMediaSrc(item.video_sqr) ? (
           <div className="flex justify-center">
             <TooltipProvider>
               <Tooltip>
@@ -828,7 +879,7 @@ const SubCategories: React.FC = () => {
                       controls={false}
                       muted
                       onMouseEnter={(e) => {
-                        e.currentTarget.play();
+                        void e.currentTarget.play().catch(() => undefined);
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.pause();
@@ -836,7 +887,7 @@ const SubCategories: React.FC = () => {
                       }}
                       onClick={(e) => {
                         if (e.currentTarget.paused) {
-                          e.currentTarget.play();
+                          void e.currentTarget.play().catch(() => undefined);
                         } else {
                           e.currentTarget.pause();
                         }
@@ -858,7 +909,7 @@ const SubCategories: React.FC = () => {
       key: "video_rec",
       header: "Video Rectangle",
       render: (item: SubCategoryWithId) =>
-        item.video_rec ? (
+        isUsableMediaSrc(item.video_rec) ? (
           <div className="flex justify-center">
             <TooltipProvider>
               <Tooltip>
@@ -870,7 +921,7 @@ const SubCategories: React.FC = () => {
                       controls={false}
                       muted
                       onMouseEnter={(e) => {
-                        e.currentTarget.play();
+                        void e.currentTarget.play().catch(() => undefined);
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.pause();
@@ -878,7 +929,7 @@ const SubCategories: React.FC = () => {
                       }}
                       onClick={(e) => {
                         if (e.currentTarget.paused) {
-                          e.currentTarget.play();
+                          void e.currentTarget.play().catch(() => undefined);
                         } else {
                           e.currentTarget.pause();
                         }
@@ -1092,6 +1143,54 @@ const SubCategories: React.FC = () => {
               )}
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="country" className="text-sm font-semibold">
+                  Country
+                </Label>
+                <Input
+                  id="country"
+                  name="country"
+                  value={formik.values.country || ""}
+                  onChange={formik.handleChange}
+                  onBlur={formik.handleBlur}
+                  placeholder="Enter country"
+                  className="h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label
+                  htmlFor="android_appVersion"
+                  className="text-sm font-semibold"
+                >
+                  Android App Version
+                </Label>
+                <Input
+                  id="android_appVersion"
+                  name="android_appVersion"
+                  value={formik.values.android_appVersion || ""}
+                  onChange={formik.handleChange}
+                  onBlur={formik.handleBlur}
+                  placeholder="Enter Android version"
+                  className="h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ios_appVersion" className="text-sm font-semibold">
+                  iOS App Version
+                </Label>
+                <Input
+                  id="ios_appVersion"
+                  name="ios_appVersion"
+                  value={formik.values.ios_appVersion || ""}
+                  onChange={formik.handleChange}
+                  onBlur={formik.handleBlur}
+                  placeholder="Enter iOS version"
+                  className="h-11"
+                />
+              </div>
+            </div>
+
             {/* Image Fields Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -1261,14 +1360,17 @@ const SubCategories: React.FC = () => {
                   {formik.values.video_sqr && (
                     <div className="mt-2 relative inline-block">
                       <div className="relative">
-                        <video
-                          src={
-                            videoPreviews.video_sqr || formik.values.video_sqr
-                          }
-                          className="w-48 h-48 rounded-lg object-cover border-2 border-border bg-black"
-                          controls
-                          autoPlay
-                        />
+                        {(() => {
+                          const src = videoPreviews.video_sqr || formik.values.video_sqr;
+                          if (!isUsableMediaSrc(src)) return null;
+                          return (
+                            <video
+                              src={src}
+                              className="w-48 h-48 rounded-lg object-cover border-2 border-border bg-black"
+                              controls
+                            />
+                          );
+                        })()}
                         <Button
                           type="button"
                           variant="destructive"
@@ -1339,14 +1441,17 @@ const SubCategories: React.FC = () => {
                   {formik.values.video_rec && (
                     <div className="mt-2 relative inline-block">
                       <div className="relative">
-                        <video
-                          src={
-                            videoPreviews.video_rec || formik.values.video_rec
-                          }
-                          className="w-64 h-36 rounded-lg object-cover border-2 border-border bg-black"
-                          controls
-                          autoPlay
-                        />
+                        {(() => {
+                          const src = videoPreviews.video_rec || formik.values.video_rec;
+                          if (!isUsableMediaSrc(src)) return null;
+                          return (
+                            <video
+                              src={src}
+                              className="w-64 h-36 rounded-lg object-cover border-2 border-border bg-black"
+                              controls
+                            />
+                          );
+                        })()}
                         <Button
                           type="button"
                           variant="destructive"
