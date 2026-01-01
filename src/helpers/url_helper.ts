@@ -121,3 +121,14 @@ export const USER_PREFERENCE_API = {
   TOGGLE: API + "/user-preference/toggle",
   REORDER: API + "/user-preference/reorder",
 };
+
+// GA4 Analytics APIs
+export const GA4_API = {
+  BASE: API + "/ga4",
+  USER_DEMOGRAPHICS: API + "/ga4/users/demographics",
+  USER_APP_VERSIONS: API + "/ga4/users/app-versions",
+  REVENUE_TREND: API + "/ga4/revenue/trend",
+  ENGAGEMENT_TIME: API + "/ga4/engagement-time",
+  USER_ACTIVITY_OVER_TIME: API + "/ga4/users/activity-over-time",
+  USER_RETENTION: API + "/ga4/users/retention",
+};
