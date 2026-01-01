@@ -218,7 +218,10 @@ import {
 } from "@/store/dashboard/thunk";
 import { getDateRangeForPreset } from "@/helpers/dateRange.helper";
 import { fetchPlatformUsers } from "@/helpers/api_helper";
-import { getFeaturePerformance, getDeviceDistribution } from "@/helpers/backend_helper";
+import {
+  getFeaturePerformance,
+  getDeviceDistribution,
+} from "@/helpers/backend_helper";
 import {
   Select,
   SelectContent,
@@ -727,18 +730,20 @@ const FeatureRevenueDonut: React.FC = () => {
     return () => root.dispose();
   }, []);
 
-  return <div ref={chartRef} style={{ width: '100%', height: '260px' }} />;
-}
+  return <div ref={chartRef} style={{ width: "100%", height: "260px" }} />;
+};
 // add a small feature data type
 type FeatureData = {
-	feature: string;
-	uses: number;
-	color?: string;
+  feature: string;
+  uses: number;
+  color?: string;
 };
 
 // Horizontal Bar Chart for Feature Performance
 // changed: accept optional `data` prop and use it if provided
-const FeaturePerformanceChart: React.FC<{ data?: FeatureData[] }> = ({ data }) => {
+const FeaturePerformanceChart: React.FC<{ data?: FeatureData[] }> = ({
+  data,
+}) => {
   const chartRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
@@ -1673,7 +1678,7 @@ const DashboardTest: React.FC = () => {
     usageRate: 0,
     conversionRate: 0,
   });
-  
+
   // Device distribution state
   const [deviceDistributionData, setDeviceDistributionData] = useState<{
     ios: { count: number; percentage: number };
@@ -1732,7 +1737,7 @@ const DashboardTest: React.FC = () => {
       setIsLoadingFeatures(true);
       try {
         const result = await getFeaturePerformance();
-        
+
         // Handle both old format (array) and new format (object with properties)
         if (Array.isArray(result)) {
           // Old format - direct array
@@ -2306,12 +2311,13 @@ const DashboardTest: React.FC = () => {
               </h2>
               <p className="text-sm text-gray-500">Usage across features</p>
             </div>
-          
           </div>
           {isLoadingFeatures ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              <span className="ml-2 text-gray-600">Loading feature data...</span>
+              <span className="ml-2 text-gray-600">
+                Loading feature data...
+              </span>
             </div>
           ) : (
             <FeaturePerformanceChart data={featurePerformanceData} />
@@ -2330,7 +2336,9 @@ const DashboardTest: React.FC = () => {
                   style={{ width: `${usageRate}%` }}
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-1">{usageRate}% usage rate</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {usageRate}% usage rate
+              </p>
             </div>
             <div className="p-4 bg-gray-50 rounded-lg">
               <div className="flex items-center justify-between mb-2">
@@ -3172,5 +3180,3 @@ const DashboardTest: React.FC = () => {
 };
 
 export default DashboardTest;
-
-
