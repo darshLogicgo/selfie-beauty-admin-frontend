@@ -1644,25 +1644,6 @@ const DashboardTest: React.FC = () => {
   const [filter, setFilter] = useState<string>("all");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
-
-  // App Versions filter (mirrors Geography controls)
-  const [appFilter, setAppFilter] = useState<string>("last7");
-  const [appStartDate, setAppStartDate] = useState<string>(
-    () => getDateRangeForPreset("last7").startDate
-  );
-  const [appEndDate, setAppEndDate] = useState<string>(
-    () => getDateRangeForPreset("last7").endDate
-  );
-
-  // Revenue filters
-  const [revenueGroup, setRevenueGroup] = useState<string>("weekly");
-  const [revenuePreset, setRevenuePreset] = useState<string>("last30");
-  const [revenueStartDate, setRevenueStartDate] = useState<string>(
-    () => getDateRangeForPreset("last30").startDate
-  );
-  const [revenueEndDate, setRevenueEndDate] = useState<string>(
-    () => getDateRangeForPreset("last30").endDate
-  );
   const [featurePerformanceData, setFeaturePerformanceData] = useState<
     FeatureData[]
   >([]);
@@ -1692,6 +1673,25 @@ const DashboardTest: React.FC = () => {
     total: 0,
   });
   const [isLoadingDevices, setIsLoadingDevices] = useState(false);
+
+  // App Versions filter (mirrors Geography controls)
+  const [appFilter, setAppFilter] = useState<string>("last7");
+  const [appStartDate, setAppStartDate] = useState<string>(
+    () => getDateRangeForPreset("last7").startDate
+  );
+  const [appEndDate, setAppEndDate] = useState<string>(
+    () => getDateRangeForPreset("last7").endDate
+  );
+
+  // Revenue filters
+  const [revenueGroup, setRevenueGroup] = useState<string>("weekly");
+  const [revenuePreset, setRevenuePreset] = useState<string>("last30");
+  const [revenueStartDate, setRevenueStartDate] = useState<string>(
+    () => getDateRangeForPreset("last30").startDate
+  );
+  const [revenueEndDate, setRevenueEndDate] = useState<string>(
+    () => getDateRangeForPreset("last30").endDate
+  );
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -1727,10 +1727,193 @@ const DashboardTest: React.FC = () => {
   useEffect(() => {
     dispatch(getDashboardStatsThunk());
     // if (filter !== "custom") {
-    //   dispatch(getLiveStatusThunk({ filter }));loadFeaturePerformance
+    //   dispatch(getLiveStatusThunk({ filter }));
     // }
   }, [dispatch, filter]);
 
+  // Fetch app versions when appFilter or date range changes (mirrors geography behavior)
+  useEffect(() => {
+    // Always pass all keys as query params in the API call
+    let params;
+    // If user selected dates directly, treat as custom and pass them
+    if (appStartDate || appEndDate) {
+      params = new URLSearchParams({
+        startDate: appStartDate || "",
+        endDate: appEndDate || "",
+      });
+    } else {
+      params = new URLSearchParams({
+        filter: appFilter,
+        period: appFilter,
+        startDate: "",
+        endDate: "",
+      });
+    }
+
+    dispatch(getGA4AppVersionsThunk(params.toString()));
+  }, [dispatch, appFilter, appStartDate, appEndDate]);
+
+  // Fetch demographics with geo filter
+  useEffect(() => {
+    // Always pass all keys as query params in the API call
+    let params;
+    // If user selected dates directly, treat as custom and pass them
+    if (geoStartDate || geoEndDate) {
+      params = new URLSearchParams({
+        startDate: geoStartDate || "",
+        endDate: geoEndDate || "",
+      });
+    } else {
+      params = new URLSearchParams({
+        filter: geoFilter,
+        period: geoFilter,
+        startDate: "",
+        endDate: "",
+      });
+    }
+    dispatch(getGA4UserDemographicsThunk(params.toString()));
+  }, [dispatch, geoFilter, geoStartDate, geoEndDate]);
+
+  // Platform users for Device Distribution (fetch when device date range changes)
+  const [platformUsers, setPlatformUsers] = useState<
+    {
+      platform: string;
+      totalUsers: number;
+      activeUsers: number;
+      share?: number;
+    }[]
+  >([]);
+  const [platformsLoading, setPlatformsLoading] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    setPlatformsLoading(true);
+    fetchPlatformUsers(deviceStartDate, deviceEndDate)
+      .then((res: any) => {
+        const d = res?.data?.data ?? res?.data ?? [];
+        if (mounted) setPlatformUsers(Array.isArray(d) ? d : []);
+      })
+      .catch((err: any) => console.error("fetchPlatformUsers", err))
+      .finally(() => setPlatformsLoading(false));
+    return () => {
+      mounted = false;
+    };
+  }, [deviceStartDate, deviceEndDate]);
+
+  // Fetch revenue trend when group or dates change
+  useEffect(() => {
+    let params;
+    if (revenueStartDate || revenueEndDate) {
+      params = new URLSearchParams({
+        startDate: revenueStartDate || "",
+        endDate: revenueEndDate || "",
+        period: revenueGroup,
+      });
+    } else {
+      params = new URLSearchParams({
+        period: revenueGroup,
+        startDate: "",
+        endDate: "",
+      });
+    }
+
+    dispatch(getGA4RevenueTrendThunk(params.toString()));
+  }, [dispatch, revenueGroup, revenueStartDate, revenueEndDate]);
+
+  // Fetch engagement data when engagement preset or dates change
+  useEffect(() => {
+    let params;
+    if (engagementStartDate || engagementEndDate) {
+      params = new URLSearchParams({
+        startDate: engagementStartDate || "",
+        endDate: engagementEndDate || "",
+      });
+    } else {
+      params = new URLSearchParams({
+        startDate: "",
+        endDate: "",
+      });
+    }
+
+    dispatch(getGA4EngagementTimeThunk(params.toString()));
+  }, [dispatch, engagementStartDate, engagementEndDate]);
+
+  // Fetch user activity data when userActivity preset or dates change
+  useEffect(() => {
+    let params;
+    if (userActivityStartDate || userActivityEndDate) {
+      params = new URLSearchParams({
+        startDate: userActivityStartDate || "",
+        endDate: userActivityEndDate || "",
+      });
+    } else {
+      params = new URLSearchParams({
+        startDate: "",
+        endDate: "",
+      });
+    }
+
+    dispatch(getGA4UserActivityOverTimeThunk(params.toString()));
+  }, [dispatch, userActivityStartDate, userActivityEndDate]);
+
+  // Fetch user retention data when retention preset or dates change
+  useEffect(() => {
+    let params;
+    if (retentionStartDate || retentionEndDate) {
+      params = new URLSearchParams({
+        startDate: retentionStartDate || "",
+        endDate: retentionEndDate || "",
+      });
+    } else {
+      params = new URLSearchParams({
+        startDate: "",
+        endDate: "",
+      });
+    }
+
+    dispatch(getGA4UserRetentionThunk(params.toString()));
+  }, [dispatch, retentionStartDate, retentionEndDate]);
+
+  // Get top 5 countries for display (excluding "other" and "not set")
+  const topCountries = userDemographics.countries
+    .filter(
+      (c) =>
+        c.countryCode &&
+        c.countryCode.length === 2 &&
+        c.countryCode !== "(other)" &&
+        c.countryCode !== "(not set)"
+    )
+    .slice(0, 10)
+    .map((c) => ({
+      country: c.country,
+      countryCode: c.countryCode,
+      total_users: (c as any).total_users ?? (c as any).users ?? 0,
+      active_users: (c as any).active_users ?? 0,
+      percentage: c.percentage ?? 0,
+    }));
+
+  // Country code to flag emoji mapping
+  const getCountryFlag = (countryCode: string) => {
+    if (!countryCode || countryCode.length !== 2) return "🌍";
+    const codePoints = countryCode
+      .toUpperCase()
+      .split("")
+      .map((char) => 127397 + char.charCodeAt(0));
+    return String.fromCodePoint(...codePoints);
+  };
+
+  // Format large numbers, handle undefined/null/NaN
+  const formatNumber = (num: number | undefined | null) => {
+    if (typeof num !== "number" || isNaN(num)) return "0";
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
+    if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+    return num.toString();
+  };
+
+  const deviceTotalUsers = platformUsers.reduce(
+    (s, p) => s + (p.totalUsers || 0),
+    0
+  );
   // fetch feature performance data using the API helper
   useEffect(() => {
     const loadFeaturePerformance = async () => {
