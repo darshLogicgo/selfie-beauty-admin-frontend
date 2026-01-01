@@ -38,10 +38,14 @@ export const get = (url: string, queryParams?: Record<string, any>) => {
       if (value !== null && value !== undefined && value !== "") {
         if (Array.isArray(value)) {
           value.forEach((val) => {
-            queryArray.push(`${encodeURIComponent(key)}=${encodeURIComponent(val)}`);
+            queryArray.push(
+              `${encodeURIComponent(key)}=${encodeURIComponent(val)}`
+            );
           });
         } else {
-          queryArray.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
+          queryArray.push(
+            `${encodeURIComponent(key)}=${encodeURIComponent(value)}`
+          );
         }
       }
     }
@@ -99,3 +103,6 @@ export const download = (url: string, data?: any) => {
   return api.get(url, config);
 };
 
+export const fetchPlatformUsers = (startDate?: string, endDate?: string) => {
+  return get("/api/v1/ga4/platform-users", { startDate, endDate });
+};

@@ -343,6 +343,57 @@ export const getDashboardStats = () => {
 };
 
 // ============================================
+// GA4 Analytics API Functions
+// ============================================
+export const getGA4UserDemographics = (queryString?: string) => {
+  let urlWithParams = url.GA4_API.USER_DEMOGRAPHICS;
+  if (queryString) {
+    urlWithParams += `?${queryString}`;
+  }
+  return api.get(urlWithParams);
+};
+
+export const getGA4AppVersions = (queryString?: string) => {
+  let urlWithParams = url.GA4_API.USER_APP_VERSIONS;
+  if (queryString) {
+    urlWithParams += `?${queryString}`;
+  }
+  return api.get(urlWithParams);
+};
+
+export const getGA4RevenueTrend = (queryString?: string) => {
+  let urlWithParams = url.GA4_API.REVENUE_TREND;
+  if (queryString) {
+    urlWithParams += `?${queryString}`;
+  }
+  return api.get(urlWithParams);
+};
+
+export const getGA4EngagementTime = (queryString?: string) => {
+  let urlWithParams = url.GA4_API.ENGAGEMENT_TIME;
+  if (queryString) {
+    urlWithParams += `?${queryString}`;
+  }
+  return api.get(urlWithParams);
+};
+
+export const getGA4UserActivityOverTime = (queryString?: string) => {
+  let urlWithParams = url.GA4_API.USER_ACTIVITY_OVER_TIME;
+  if (queryString) {
+    urlWithParams += `?${queryString}`;
+  }
+  return api.get(urlWithParams);
+};
+
+export const getGA4UserRetention = (queryString?: string) => {
+  let urlWithParams = url.GA4_API.USER_RETENTION;
+  if (queryString) {
+    urlWithParams += `?${queryString}`;
+  }
+  return api.get(urlWithParams);
+};
+
+// ============================================
 // Live Status API Functions
 // ============================================
 const LIVE_STATUS_BASE_URL =
