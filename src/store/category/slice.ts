@@ -4,6 +4,8 @@ import {
   getCategoryThunk,
   deleteCategoryThunk,
   toggleCategoryStatusThunk,
+  toggleCategoryAndroidActiveThunk,
+  toggleCategoryIOSActiveThunk,
   reorderCategoryThunk,
   updateCategoryThunk,
   getCategoryTitlesThunk,
@@ -142,6 +144,56 @@ const slice = createSlice({
     builder.addCase(toggleCategoryStatusThunk.rejected, (state, action) => {
       state.loading = false;
       state.error = (action.payload as { message?: string })?.message || "Failed to update category status";
+      state.message = "";
+    });
+
+    // =================================  Toggle Category Android Active ==================================
+    builder.addCase(toggleCategoryAndroidActiveThunk.pending, (state) => {
+      state.loading = true;
+      state.message = "";
+      state.error = null;
+    });
+    builder.addCase(toggleCategoryAndroidActiveThunk.fulfilled, (state, action) => {
+      state.loading = false;
+      state.message = action.payload.message || "";
+      state.error = null;
+      if (action.payload.data?._id) {
+        const index = state.data.findIndex(
+          (item) => item._id === action.payload.data._id
+        );
+        if (index !== -1) {
+          state.data[index] = { ...state.data[index], ...action.payload.data };
+        }
+      }
+    });
+    builder.addCase(toggleCategoryAndroidActiveThunk.rejected, (state, action) => {
+      state.loading = false;
+      state.error = (action.payload as { message?: string })?.message || "Failed to update Android activation";
+      state.message = "";
+    });
+
+    // =================================  Toggle Category iOS Active ==================================
+    builder.addCase(toggleCategoryIOSActiveThunk.pending, (state) => {
+      state.loading = true;
+      state.message = "";
+      state.error = null;
+    });
+    builder.addCase(toggleCategoryIOSActiveThunk.fulfilled, (state, action) => {
+      state.loading = false;
+      state.message = action.payload.message || "";
+      state.error = null;
+      if (action.payload.data?._id) {
+        const index = state.data.findIndex(
+          (item) => item._id === action.payload.data._id
+        );
+        if (index !== -1) {
+          state.data[index] = { ...state.data[index], ...action.payload.data };
+        }
+      }
+    });
+    builder.addCase(toggleCategoryIOSActiveThunk.rejected, (state, action) => {
+      state.loading = false;
+      state.error = (action.payload as { message?: string })?.message || "Failed to update iOS activation";
       state.message = "";
     });
 

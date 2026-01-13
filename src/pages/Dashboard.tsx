@@ -337,7 +337,7 @@ const Dashboard: React.FC = () => {
                           Success
                         </span>
                         <span className="font-bold text-gray-900 text-sm">
-                          {categoryData.success_calls.toLocaleString()}
+                          {categoryData?.success_calls?.toLocaleString() || '0'}
                         </span>
                       </div>
 
@@ -347,7 +347,7 @@ const Dashboard: React.FC = () => {
                           Failed
                         </span>
                         <span className="font-bold text-gray-900 text-sm">
-                          {categoryData.failed_calls.toLocaleString()}
+                          {categoryData?.failed_calls?.toLocaleString() || '0'}
                         </span>
                       </div>
 
@@ -378,7 +378,7 @@ const Dashboard: React.FC = () => {
                           Total Records
                         </span>
                         <span className="font-bold text-gray-900 text-sm">
-                          {categoryData.total_records.toLocaleString()}
+                          {categoryData?.total_records?.toLocaleString() || '0'}
                         </span>
                       </div>
                     </div>
@@ -423,7 +423,7 @@ const Dashboard: React.FC = () => {
                       {category.name}
                     </span>
                     <span className="text-muted-foreground text-sm">
-                      {category.mediaclicks.toLocaleString()} users
+                      {category?.mediaclicks?.toLocaleString() || '0'} users
                     </span>
                   </div>
                   <div className="h-2.5 bg-secondary rounded-full overflow-hidden">

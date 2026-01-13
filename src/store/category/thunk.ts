@@ -1,6 +1,6 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { toastError, toastSuccess } from "../../config/toastConfig";
-import { getCategory, createCategory, updateCategory, deleteCategory, toggleCategoryStatus, reorderCategory, getCategoryTitles, toggleCategoryPremium } from "../../helpers/backend_helper";
+import { getCategory, createCategory, updateCategory, deleteCategory, toggleCategoryStatus, toggleCategoryAndroidActive, toggleCategoryIOSActive, reorderCategory, getCategoryTitles, toggleCategoryPremium } from "../../helpers/backend_helper";
 
 // ============================================
 // Category Thunks
@@ -94,6 +94,46 @@ export const toggleCategoryStatusThunk = createAsyncThunk(
       return response.data;
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || "Failed to update category status";
+      if (errorMessage) {
+        toastError(errorMessage);
+      }
+      return rejectWithValue({
+        status: error.response?.status,
+        message: errorMessage,
+      });
+    }
+  }
+);
+
+export const toggleCategoryAndroidActiveThunk = createAsyncThunk(
+  "toggleCategoryAndroidActiveThunk",
+  async ({ id, isAndroid }: { id: string; isAndroid: boolean }, { rejectWithValue }) => {
+    try {
+      const response = await toggleCategoryAndroidActive(id, isAndroid);
+      toastSuccess(response.data.message || "Android activation updated successfully");
+      return response.data;
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || "Failed to update Android activation";
+      if (errorMessage) {
+        toastError(errorMessage);
+      }
+      return rejectWithValue({
+        status: error.response?.status,
+        message: errorMessage,
+      });
+    }
+  }
+);
+
+export const toggleCategoryIOSActiveThunk = createAsyncThunk(
+  "toggleCategoryIOSActiveThunk",
+  async ({ id, isIos }: { id: string; isIos: boolean }, { rejectWithValue }) => {
+    try {
+      const response = await toggleCategoryIOSActive(id, isIos);
+      toastSuccess(response.data.message || "iOS activation updated successfully");
+      return response.data;
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || "Failed to update iOS activation";
       if (errorMessage) {
         toastError(errorMessage);
       }
