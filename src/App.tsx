@@ -16,6 +16,8 @@ import UserPreference from "@/pages/UserPreference";
 import More from "@/pages/More";
 import Support from "@/pages/Support";
 import Uninstall from "@/pages/Uninstall";
+import Events from "@/pages/Events";
+import FunnelAnalytics from "@/pages/FunnelAnalytics";
 import NotFound from "./pages/NotFound";
 import { AUTH_ROUTES, ADMIN_ROUTES } from "@/constants/routes";
 
@@ -24,7 +26,7 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster 
+      <Toaster
         position="top-center"
         toastOptions={{
           duration: 3000,
@@ -36,20 +38,40 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path={AUTH_ROUTES.SIGN_IN} element={<Login />} />
-          <Route path="/" element={<Navigate to={ADMIN_ROUTES.DASHBOARD} replace />} />
+          <Route
+            path="/"
+            element={<Navigate to={ADMIN_ROUTES.DASHBOARD} replace />}
+          />
           <Route element={<AdminLayout />}>
             <Route path={ADMIN_ROUTES.DASHBOARD} element={<Dashboard />} />
-            <Route path={ADMIN_ROUTES.DASHBOARD_TEST} element={<DashboardTest />} />
+            <Route
+              path={ADMIN_ROUTES.DASHBOARD_TEST}
+              element={<DashboardTest />}
+            />
             <Route path={ADMIN_ROUTES.CATEGORIES} element={<Categories />} />
-            <Route path={ADMIN_ROUTES.SUB_CATEGORIES} element={<SubCategories />} />
-            <Route path={ADMIN_ROUTES.HOME_SETTINGS} element={<HomeSettings />} />
+            <Route
+              path={ADMIN_ROUTES.SUB_CATEGORIES}
+              element={<SubCategories />}
+            />
+            <Route
+              path={ADMIN_ROUTES.HOME_SETTINGS}
+              element={<HomeSettings />}
+            />
             <Route path={ADMIN_ROUTES.MORE} element={<More />} />
             <Route path={ADMIN_ROUTES.AI_PHOTO} element={<AIPhoto />} />
             <Route path={ADMIN_ROUTES.TRENDING} element={<Trending />} />
             <Route path={ADMIN_ROUTES.AI_WORLD} element={<AIWorld />} />
-            <Route path={ADMIN_ROUTES.USER_PREFERENCE} element={<UserPreference />} />
+            <Route
+              path={ADMIN_ROUTES.USER_PREFERENCE}
+              element={<UserPreference />}
+            />
             <Route path={ADMIN_ROUTES.SUPPORT} element={<Support />} />
             <Route path={ADMIN_ROUTES.UNINSTALL} element={<Uninstall />} />
+            <Route path={ADMIN_ROUTES.EVENTS} element={<Events />} />
+            <Route
+              path={ADMIN_ROUTES.FUNNEL_ANALYTICS}
+              element={<FunnelAnalytics />}
+            />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

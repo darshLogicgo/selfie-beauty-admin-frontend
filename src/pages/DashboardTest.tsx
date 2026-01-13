@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useLayoutEffect } from "react";
+import { Link } from "react-router-dom";
 import {
   FolderOpen,
   Users,
@@ -82,7 +83,6 @@ import {
   Edit,
   Trash2,
   Copy,
-  Link,
   Send,
   Play,
   Pause,
@@ -215,8 +215,10 @@ import {
   getGA4EngagementTimeThunk,
   getGA4UserActivityOverTimeThunk,
   getGA4UserRetentionThunk,
+  getGA4EventsThunk,
 } from "@/store/dashboard/thunk";
 import { getDateRangeForPreset } from "@/helpers/dateRange.helper";
+import { ADMIN_ROUTES } from "@/constants/routes";
 import { fetchPlatformUsers } from "@/helpers/api_helper";
 import {
   getFeaturePerformance,
@@ -241,6 +243,7 @@ import * as am5radar from "@amcharts/amcharts5/radar";
 import * as am5map from "@amcharts/amcharts5/map";
 import am5geodata_worldLow from "@amcharts/amcharts5-geodata/worldLow";
 import am5themes_Animated from "@amcharts/amcharts5/themes/Animated";
+import { DateRangePicker } from "@/components/DateRangePicker";
 
 interface RevenuePoint {
   date: string;
@@ -767,6 +770,7 @@ const FeaturePerformanceChart: React.FC<{ data?: FeatureData[] }> = ({
           minGridDistance: 20,
           cellStartLocation: 0.1,
           cellEndLocation: 0.9,
+          inversed: true, // This will reverse the order
         }),
       })
     );
@@ -808,7 +812,9 @@ const FeaturePerformanceChart: React.FC<{ data?: FeatureData[] }> = ({
     // Always render chart with dynamic data - use empty array if no data
     const chartData = data && data.length ? data : [];
 
-    yAxis.data.setAll(chartData as any);
+    // Set the category order explicitly to ensure most used is at top
+    const categories = chartData.map(item => item.feature);
+    yAxis.data.setAll(categories.map(category => ({ feature: category })));
     series.data.setAll(chartData as any);
 
     chartData.forEach((item, index) => {
@@ -1140,10 +1146,19 @@ const DeviceDistributionChart: React.FC<{
     plotOptions: { pie: { donut: { size: "65%" } } },
   };
 
+  // Create a unique key to force chart re-render when data changes
+  const chartKey = `device-dist-${startDate}-${endDate}-${totalUsers}-${activeUsers}`;
+
   return (
     <div>
       <div className="w-full">
-        <Chart options={options} series={series} type="donut" height={240} />
+        <Chart
+          key={chartKey}
+          options={options}
+          series={series}
+          type="donut"
+          height={240}
+        />
       </div>
 
       {/* summary grid removed per request */}
@@ -1244,7 +1259,6 @@ const AppVersionChart: React.FC<{ versions?: any[] }> = ({ versions = [] }) => {
   return (
     <div>
       <Chart options={options} series={series} type="bar" height={380} />
-      <p className="text-xs text-gray-400 mt-2">Sorted by Total Users (desc)</p>
     </div>
   );
 };
@@ -1619,6 +1633,8 @@ const DashboardTest: React.FC = () => {
     userActivityLoading,
     userRetention,
     userRetentionLoading,
+    ga4Events,
+    ga4EventsLoading,
   } = useAppSelector((state) => state.Dashboard);
 
   // Filter state for demographics section
@@ -1647,6 +1663,7 @@ const DashboardTest: React.FC = () => {
   const [featurePerformanceData, setFeaturePerformanceData] = useState<
     FeatureData[]
   >([]);
+  const [featureFilter, setFeatureFilter] = useState<string>("top5");
   const [isLoadingFeatures, setIsLoadingFeatures] = useState(false);
   const [featurePerformanceMetrics, setFeaturePerformanceMetrics] = useState<{
     totalUses: number;
@@ -1722,6 +1739,12 @@ const DashboardTest: React.FC = () => {
   const [retentionEndDate, setRetentionEndDate] = useState<string>(
     () => getDateRangeForPreset("last30").endDate
   );
+
+  // GA4 Events filters
+  const [eventsPreset, setEventsPreset] = useState<string>("");
+  const [eventsStartDate, setEventsStartDate] = useState<string>("");
+  const [eventsEndDate, setEventsEndDate] = useState<string>("");
+  const [eventsLimit, setEventsLimit] = useState<number>(25);
 
   // Fetch dashboard stats and live status (existing logic)
   useEffect(() => {
@@ -1874,6 +1897,17 @@ const DashboardTest: React.FC = () => {
     dispatch(getGA4UserRetentionThunk(params.toString()));
   }, [dispatch, retentionStartDate, retentionEndDate]);
 
+  // Fetch GA4 events based on date range and limit
+  useEffect(() => {
+    const params = new URLSearchParams({
+      startDate: eventsStartDate || "",
+      endDate: eventsEndDate || "",
+      limit: String(eventsLimit || 25),
+    });
+
+    dispatch(getGA4EventsThunk(params.toString()));
+  }, [dispatch, eventsStartDate, eventsEndDate, eventsLimit]);
+
   // Get top 5 countries for display (excluding "other" and "not set")
   const topCountries = userDemographics.countries
     .filter(
@@ -1914,13 +1948,24 @@ const DashboardTest: React.FC = () => {
     (s, p) => s + (p.totalUsers || 0),
     0
   );
+
+  const ga4EventsRows = Array.isArray(ga4Events?.data)
+    ? (ga4Events.data as Array<{
+        eventName: string;
+        eventCount: number;
+        totalUsers?: number;
+        eventCountPerActiveUser?: number;
+        totalRevenue?: number;
+      }>)
+    : [];
+  const ga4EventsTop10 = ga4EventsRows.slice(0, 10);
   // fetch feature performance data using the API helper
   useEffect(() => {
     const loadFeaturePerformance = async () => {
       setIsLoadingFeatures(true);
       try {
         const result = await getFeaturePerformance();
-        
+
         // Handle both old format (array) and new format (object with properties)
         if (Array.isArray(result)) {
           // Old format - direct array
@@ -1967,7 +2012,10 @@ const DashboardTest: React.FC = () => {
     const loadDeviceDistribution = async () => {
       setIsLoadingDevices(true);
       try {
-        const result = await getDeviceDistribution();
+        const result = await getDeviceDistribution(
+          deviceStartDate,
+          deviceEndDate
+        );
         setDeviceDistributionData(result);
       } catch (error) {
         // Keep default empty data
@@ -1977,13 +2025,29 @@ const DashboardTest: React.FC = () => {
     };
 
     loadDeviceDistribution();
-  }, []);
+  }, [deviceStartDate, deviceEndDate]);
 
   // derived values for the UI under Feature Performance - trust API metrics
   const totalUses = featurePerformanceMetrics.totalUses;
   const paywallHitsVal = featurePerformanceMetrics.paywallHits;
   const usageRate = featurePerformanceMetrics.usageRate;
   const paywallConversionRate = featurePerformanceMetrics.conversionRate;
+
+  // Filter feature performance data based on selected filter
+  const getFilteredFeatureData = () => {
+    switch (featureFilter) {
+      case "top5":
+        return featurePerformanceData.slice(0, 5);
+      case "top10":
+        return featurePerformanceData.slice(0, 10);
+      case "all":
+        return featurePerformanceData;
+      default:
+        return featurePerformanceData.slice(0, 5);
+    }
+  };
+
+  const filteredFeatureData = getFilteredFeatureData();
 
   const handleFilterChange = (newFilter: string) => {
     setFilter(newFilter);
@@ -2231,82 +2295,66 @@ const DashboardTest: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Revenue Insights (Left Column) */}
         <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-start justify-between mb-1">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-1">
+              <h2 className="text-lg font-semibold text-gray-900">
                 Revenue Insights
               </h2>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 flex-wrap">
-                <select
-                  className="px-2 py-1 text-xs rounded-lg font-medium border bg-white text-gray-700 border-gray-200 focus:outline-none"
-                  value={revenuePreset}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setRevenuePreset(v);
-                    const { startDate, endDate } = getDateRangeForPreset(v);
-                    setRevenueStartDate(startDate);
-                    setRevenueEndDate(endDate);
-                  }}
-                  disabled={revenueTrendLoading}
-                >
-                  <option value="today">Today</option>
-                  <option value="yesterday">Yesterday</option>
-                  <option value="last7">Last 7 days</option>
-                  <option value="last28">Last 28 days</option>
-                  <option value="last30">Last 30 days</option>
-                  <option value="thisWeek">This week</option>
-                  <option value="lastWeek">Last week</option>
-                  <option value="thisMonth">This month</option>
-                  <option value="lastMonth">Last month</option>
-                  <option value="last90">Last 90 days</option>
-                  <option value="quarterToDate">Quarter to date</option>
-                  <option value="thisYear">This year</option>
-                  <option value="lastCalendarYear">Last calendar year</option>
-                </select>
-
-                <input
-                  type="date"
-                  className="border border-gray-300 rounded px-2 py-1 text-xs"
-                  value={revenueStartDate}
-                  max={revenueEndDate || today}
-                  onChange={(e) => {
-                    setRevenueStartDate(e.target.value);
-                    setRevenuePreset("");
-                  }}
-                  placeholder="Start Date"
-                  style={{ minWidth: 110 }}
-                  disabled={revenueTrendLoading}
-                />
-                <span className="text-xs text-gray-500">to</span>
-                <input
-                  type="date"
-                  className="border border-gray-300 rounded px-2 py-1 text-xs"
-                  value={revenueEndDate}
-                  min={revenueStartDate}
-                  max={today}
-                  onChange={(e) => {
-                    setRevenueEndDate(e.target.value);
-                    setRevenuePreset("");
-                  }}
-                  placeholder="End Date"
-                  style={{ minWidth: 110 }}
-                  disabled={revenueTrendLoading}
-                />
-
-                <span className="px-3 py-1.5 bg-blue-50 text-xs font-medium text-blue-700 rounded-lg">
-                  Total: ${(revenueTrend?.totalRevenue || 0).toFixed(2)}
-                </span>
-              </div>
-            </div>
           </div>
 
-          <div className="mb-4">
+          <div className="flex items-center gap-2 flex-wrap mb-6">
+            <select
+              className="px-2 py-1 text-xs rounded-lg font-medium border bg-white text-gray-700 border-gray-200 focus:outline-none"
+              value={revenuePreset}
+              onChange={(e) => {
+                const v = e.target.value;
+                setRevenuePreset(v);
+                if (v !== "custom") {
+                  const { startDate, endDate } = getDateRangeForPreset(v);
+                  setRevenueStartDate(startDate);
+                  setRevenueEndDate(endDate);
+                }
+              }}
+              disabled={revenueTrendLoading}
+            >
+              <option value="custom">Custom</option>
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="last7">Last 7 days</option>
+              <option value="last28">Last 28 days</option>
+              <option value="last30">Last 30 days</option>
+              <option value="thisWeek">This week</option>
+              <option value="lastWeek">Last week</option>
+              <option value="thisMonth">This month</option>
+              <option value="lastMonth">Last month</option>
+              <option value="last90">Last 90 days</option>
+              <option value="quarterToDate">Quarter to date</option>
+              <option value="thisYear">This year</option>
+              <option value="lastCalendarYear">Last calendar year</option>
+            </select>
+
+            <DateRangePicker
+              startDate={revenueStartDate}
+              endDate={revenueEndDate}
+              onStartDateChange={(date) => {
+                setRevenueStartDate(date);
+                setRevenuePreset("custom");
+              }}
+              onEndDateChange={(date) => {
+                setRevenueEndDate(date);
+                setRevenuePreset("custom");
+              }}
+              maxDate={today}
+              disabled={revenueTrendLoading}
+            />
+          </div>
+
+          {/* <div className="mb-4">
             <div className="flex items-baseline gap-2 mb-1">
               <span className="text-sm text-gray-500">Revenue Trend</span>
             </div>
-          </div>
+          </div> */}
 
           <div className="relative">
             <RevenueTrendChart
@@ -2320,94 +2368,70 @@ const DashboardTest: React.FC = () => {
               </div>
             )}
           </div>
+
+          <div className="text-center mt-4 pt-6 border-t border-gray-100">
+            <p className="text-xs text-gray-500 mb-1">Total</p>
+            <p className="text-xl font-bold text-gray-900">
+              ${(revenueTrend?.totalRevenue || 0).toFixed(2)}
+            </p>
+          </div>
         </div>
 
         {/* User Activity Insights (Right Column) */}
         <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-start justify-between mb-1">
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-1">
+              <h2 className="text-lg font-semibold text-gray-900 ">
                 User Activity Insights
               </h2>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 flex-wrap">
-                <select
-                  className="px-2 py-1 text-xs rounded-lg font-medium border bg-white text-gray-700 border-gray-200 focus:outline-none"
-                  value={userActivityPreset}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setUserActivityPreset(v);
-                    const { startDate, endDate } = getDateRangeForPreset(v);
-                    setUserActivityStartDate(startDate);
-                    setUserActivityEndDate(endDate);
-                  }}
-                  disabled={userActivityLoading}
-                >
-                  <option value="today">Today</option>
-                  <option value="yesterday">Yesterday</option>
-                  <option value="last7">Last 7 days</option>
-                  <option value="last28">Last 28 days</option>
-                  <option value="last30">Last 30 days</option>
-                  <option value="thisWeek">This week</option>
-                  <option value="lastWeek">Last week</option>
-                  <option value="thisMonth">This month</option>
-                  <option value="lastMonth">Last month</option>
-                  <option value="last90">Last 90 days</option>
-                  <option value="quarterToDate">Quarter to date</option>
-                  <option value="thisYear">This year</option>
-                  <option value="lastCalendarYear">Last calendar year</option>
-                </select>
-
-                <input
-                  type="date"
-                  className="border border-gray-300 rounded px-2 py-1 text-xs"
-                  value={userActivityStartDate}
-                  max={userActivityEndDate || today}
-                  onChange={(e) => {
-                    setUserActivityStartDate(e.target.value);
-                    setUserActivityPreset("");
-                  }}
-                  placeholder="Start Date"
-                  style={{ minWidth: 110 }}
-                  disabled={userActivityLoading}
-                />
-                <span className="text-xs text-gray-500">to</span>
-                <input
-                  type="date"
-                  className="border border-gray-300 rounded px-2 py-1 text-xs"
-                  value={userActivityEndDate}
-                  min={userActivityStartDate}
-                  max={today}
-                  onChange={(e) => {
-                    setUserActivityEndDate(e.target.value);
-                    setUserActivityPreset("");
-                  }}
-                  placeholder="End Date"
-                  style={{ minWidth: 110 }}
-                  disabled={userActivityLoading}
-                />
-
-                <span className="px-3 py-1.5 bg-blue-50 text-xs font-medium text-blue-700 rounded-lg">
-                  Last 30 Days:{" "}
-                  {(userActivity?.summary?.last30Days || 0).toLocaleString()}
-                </span>
-                <span className="px-3 py-1.5 bg-green-50 text-xs font-medium text-green-700 rounded-lg">
-                  Last 7 Days:{" "}
-                  {(userActivity?.summary?.last7Days || 0).toLocaleString()}
-                </span>
-                <span className="px-3 py-1.5 bg-orange-50 text-xs font-medium text-orange-700 rounded-lg">
-                  Last 1 Day:{" "}
-                  {(userActivity?.summary?.last1Day || 0).toLocaleString()}
-                </span>
-              </div>
-            </div>
           </div>
 
-          <div className="mb-4">
-            <div className="flex items-baseline gap-2 mb-1">
-              <span className="text-sm text-gray-500">User Activity Trend</span>
-            </div>
+          <div className="flex items-center gap-2 flex-wrap mb-4">
+            <select
+              className="px-2 py-1 text-xs rounded-lg font-medium border bg-white text-gray-700 border-gray-200 focus:outline-none"
+              value={userActivityPreset}
+              onChange={(e) => {
+                const v = e.target.value;
+                setUserActivityPreset(v);
+                if (v !== "custom") {
+                  const { startDate, endDate } = getDateRangeForPreset(v);
+                  setUserActivityStartDate(startDate);
+                  setUserActivityEndDate(endDate);
+                }
+              }}
+              disabled={userActivityLoading}
+            >
+              <option value="custom">Custom</option>
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="last7">Last 7 days</option>
+              <option value="last28">Last 28 days</option>
+              <option value="last30">Last 30 days</option>
+              <option value="thisWeek">This week</option>
+              <option value="lastWeek">Last week</option>
+              <option value="thisMonth">This month</option>
+              <option value="lastMonth">Last month</option>
+              <option value="last90">Last 90 days</option>
+              <option value="quarterToDate">Quarter to date</option>
+              <option value="thisYear">This year</option>
+              <option value="lastCalendarYear">Last calendar year</option>
+            </select>
+
+            <DateRangePicker
+              startDate={userActivityStartDate}
+              endDate={userActivityEndDate}
+              onStartDateChange={(date) => {
+                setUserActivityStartDate(date);
+                setUserActivityPreset("custom");
+              }}
+              onEndDateChange={(date) => {
+                setUserActivityEndDate(date);
+                setUserActivityPreset("custom");
+              }}
+              maxDate={today}
+              disabled={userActivityLoading}
+            />
           </div>
 
           <div className="relative">
@@ -2422,6 +2446,27 @@ const DashboardTest: React.FC = () => {
                 <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
               </div>
             )}
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-gray-100">
+            <div className="text-center">
+              <p className="text-xs text-gray-500 mb-1">Last 30 Days</p>
+              <p className="text-xl font-bold text-gray-900">
+                {(userActivity?.summary?.last30Days || 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-gray-500 mb-1">Last 7 Days</p>
+              <p className="text-xl font-bold text-gray-900">
+                {(userActivity?.summary?.last7Days || 0).toLocaleString()}
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-gray-500 mb-1">Last 1 Day</p>
+              <p className="text-xl font-bold text-gray-900">
+                {(userActivity?.summary?.last1Day || 0).toLocaleString()}
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -2494,6 +2539,16 @@ const DashboardTest: React.FC = () => {
               </h2>
               <p className="text-sm text-gray-500">Usage across features</p>
             </div>
+            <Select value={featureFilter} onValueChange={setFeatureFilter}>
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="top5">Top 5</SelectItem>
+                <SelectItem value="top10">Top 10</SelectItem>
+                <SelectItem value="all">All</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           {isLoadingFeatures ? (
             <div className="flex items-center justify-center py-12">
@@ -2503,7 +2558,7 @@ const DashboardTest: React.FC = () => {
               </span>
             </div>
           ) : (
-            <FeaturePerformanceChart data={featurePerformanceData} />
+            <FeaturePerformanceChart data={filteredFeatureData} />
           )}
           <div className="grid grid-cols-2 gap-4 mt-6">
             <div className="p-4 bg-gray-50 rounded-lg">
@@ -2606,12 +2661,15 @@ const DashboardTest: React.FC = () => {
                   onChange={(e) => {
                     const v = e.target.value;
                     setRetentionPreset(v);
-                    const { startDate, endDate } = getDateRangeForPreset(v);
-                    setRetentionStartDate(startDate);
-                    setRetentionEndDate(endDate);
+                    if (v !== "custom") {
+                      const { startDate, endDate } = getDateRangeForPreset(v);
+                      setRetentionStartDate(startDate);
+                      setRetentionEndDate(endDate);
+                    }
                   }}
                   disabled={userRetentionLoading}
                 >
+                  <option value="custom">Custom</option>
                   <option value="today">Today</option>
                   <option value="yesterday">Yesterday</option>
                   <option value="last7">Last 7 days</option>
@@ -2627,32 +2685,18 @@ const DashboardTest: React.FC = () => {
                   <option value="lastCalendarYear">Last calendar year</option>
                 </select>
 
-                <input
-                  type="date"
-                  className="border border-gray-300 rounded px-2 py-1 text-xs"
-                  value={retentionStartDate}
-                  max={retentionEndDate || today}
-                  onChange={(e) => {
-                    setRetentionStartDate(e.target.value);
-                    setRetentionPreset("");
+                <DateRangePicker
+                  startDate={retentionStartDate}
+                  endDate={retentionEndDate}
+                  onStartDateChange={(date) => {
+                    setRetentionStartDate(date);
+                    setRetentionPreset("custom");
                   }}
-                  placeholder="Start Date"
-                  style={{ minWidth: 110 }}
-                  disabled={userRetentionLoading}
-                />
-                <span className="text-xs text-gray-500">to</span>
-                <input
-                  type="date"
-                  className="border border-gray-300 rounded px-2 py-1 text-xs"
-                  value={retentionEndDate}
-                  min={retentionStartDate}
-                  max={today}
-                  onChange={(e) => {
-                    setRetentionEndDate(e.target.value);
-                    setRetentionPreset("");
+                  onEndDateChange={(date) => {
+                    setRetentionEndDate(date);
+                    setRetentionPreset("custom");
                   }}
-                  placeholder="End Date"
-                  style={{ minWidth: 110 }}
+                  maxDate={today}
                   disabled={userRetentionLoading}
                 />
               </div>
@@ -2671,14 +2715,14 @@ const DashboardTest: React.FC = () => {
             />
           )}
 
-          <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-gray-100">
-            <div>
+          <div className="grid grid-cols-3 gap-4 mt-4 pt-6 border-t border-gray-100">
+            <div className="text-center">
               <p className="text-xs text-gray-500 mb-1">Base Users</p>
               <p className="text-xl font-bold text-gray-900">
                 {userRetention?.baseUsers?.toLocaleString() || "0"}
               </p>
             </div>
-            <div>
+            <div className="text-center">
               <p className="text-xs text-gray-500 mb-1">Avg Retention</p>
               <p className="text-xl font-bold text-gray-900">
                 {userRetention?.data?.length
@@ -2692,7 +2736,7 @@ const DashboardTest: React.FC = () => {
                 %
               </p>
             </div>
-            <div>
+            <div className="text-center">
               <p className="text-xs text-gray-500 mb-1">Day 30 Retention</p>
               <p className="text-xl font-bold text-gray-900">
                 {userRetention?.data
@@ -2729,12 +2773,15 @@ const DashboardTest: React.FC = () => {
                   onChange={(e) => {
                     const v = e.target.value;
                     setEngagementPreset(v);
-                    const { startDate, endDate } = getDateRangeForPreset(v);
-                    setEngagementStartDate(startDate);
-                    setEngagementEndDate(endDate);
+                    if (v !== "custom") {
+                      const { startDate, endDate } = getDateRangeForPreset(v);
+                      setEngagementStartDate(startDate);
+                      setEngagementEndDate(endDate);
+                    }
                   }}
                   disabled={engagementLoading}
                 >
+                  <option value="custom">Custom</option>
                   <option value="today">Today</option>
                   <option value="yesterday">Yesterday</option>
                   <option value="last7">Last 7 days</option>
@@ -2750,32 +2797,18 @@ const DashboardTest: React.FC = () => {
                   <option value="lastCalendarYear">Last calendar year</option>
                 </select>
 
-                <input
-                  type="date"
-                  className="border border-gray-300 rounded px-2 py-1 text-xs"
-                  value={engagementStartDate}
-                  max={engagementEndDate || today}
-                  onChange={(e) => {
-                    setEngagementStartDate(e.target.value);
-                    setEngagementPreset("");
+                <DateRangePicker
+                  startDate={engagementStartDate}
+                  endDate={engagementEndDate}
+                  onStartDateChange={(date) => {
+                    setEngagementStartDate(date);
+                    setEngagementPreset("custom");
                   }}
-                  placeholder="Start Date"
-                  style={{ minWidth: 110 }}
-                  disabled={engagementLoading}
-                />
-                <span className="text-xs text-gray-500">to</span>
-                <input
-                  type="date"
-                  className="border border-gray-300 rounded px-2 py-1 text-xs"
-                  value={engagementEndDate}
-                  min={engagementStartDate}
-                  max={today}
-                  onChange={(e) => {
-                    setEngagementEndDate(e.target.value);
-                    setEngagementPreset("");
+                  onEndDateChange={(date) => {
+                    setEngagementEndDate(date);
+                    setEngagementPreset("custom");
                   }}
-                  placeholder="End Date"
-                  style={{ minWidth: 110 }}
+                  maxDate={today}
                   disabled={engagementLoading}
                 />
               </div>
@@ -2877,12 +2910,15 @@ const DashboardTest: React.FC = () => {
                   onChange={(e) => {
                     const v = e.target.value;
                     setAppFilter(v);
-                    const { startDate, endDate } = getDateRangeForPreset(v);
-                    setAppStartDate(startDate);
-                    setAppEndDate(endDate);
+                    if (v !== "custom") {
+                      const { startDate, endDate } = getDateRangeForPreset(v);
+                      setAppStartDate(startDate);
+                      setAppEndDate(endDate);
+                    }
                   }}
                   disabled={appVersionsLoading}
                 >
+                  <option value="custom">Custom</option>
                   <option value="today">Today</option>
                   <option value="yesterday">Yesterday</option>
                   <option value="last7">Last 7 days</option>
@@ -2898,26 +2934,18 @@ const DashboardTest: React.FC = () => {
                   <option value="lastCalendarYear">Last calendar year</option>
                 </select>
 
-                <input
-                  type="date"
-                  className="border border-gray-300 rounded px-2 py-1 text-xs"
-                  value={appStartDate}
-                  max={appEndDate || today}
-                  onChange={(e) => setAppStartDate(e.target.value)}
-                  placeholder="Start Date"
-                  style={{ minWidth: 110 }}
-                  disabled={appVersionsLoading}
-                />
-                <span className="text-xs text-gray-500">to</span>
-                <input
-                  type="date"
-                  className="border border-gray-300 rounded px-2 py-1 text-xs"
-                  value={appEndDate}
-                  min={appStartDate}
-                  max={today}
-                  onChange={(e) => setAppEndDate(e.target.value)}
-                  placeholder="End Date"
-                  style={{ minWidth: 110 }}
+                <DateRangePicker
+                  startDate={appStartDate}
+                  endDate={appEndDate}
+                  onStartDateChange={(date) => {
+                    setAppStartDate(date);
+                    setAppFilter("custom");
+                  }}
+                  onEndDateChange={(date) => {
+                    setAppEndDate(date);
+                    setAppFilter("custom");
+                  }}
+                  maxDate={today}
                   disabled={appVersionsLoading}
                 />
               </div>
@@ -2932,6 +2960,125 @@ const DashboardTest: React.FC = () => {
             )}
           </div>
         </div>
+      </div>
+
+      {/* GA4 Events */}
+      <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">
+              Event count by Event name
+            </h2>
+            <p className="text-sm text-gray-500">Latest top 10 events</p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <select
+              className="px-2 py-1 text-xs rounded-lg font-medium border bg-white text-gray-700 border-gray-200 focus:outline-none"
+              value={eventsPreset}
+              onChange={(e) => {
+                const v = e.target.value;
+                setEventsPreset(v);
+                if (v !== "" && v !== "custom") {
+                  const { startDate, endDate } = getDateRangeForPreset(v);
+                  setEventsStartDate(startDate);
+                  setEventsEndDate(endDate);
+                }
+              }}
+              disabled={ga4EventsLoading}
+            >
+              <option value="">All Time</option>
+              <option value="custom">Custom</option>
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="last7">Last 7 days</option>
+              <option value="last28">Last 28 days</option>
+              <option value="last30">Last 30 days</option>
+              <option value="thisWeek">This week</option>
+              <option value="lastWeek">Last week</option>
+              <option value="thisMonth">This month</option>
+              <option value="lastMonth">Last month</option>
+              <option value="last90">Last 90 days</option>
+              <option value="quarterToDate">Quarter to date</option>
+              <option value="thisYear">This year</option>
+              <option value="lastCalendarYear">Last calendar year</option>
+            </select>
+
+            <DateRangePicker
+              startDate={eventsStartDate}
+              endDate={eventsEndDate}
+              onStartDateChange={(date) => {
+                setEventsStartDate(date);
+                setEventsPreset("custom");
+              }}
+              onEndDateChange={(date) => {
+                setEventsEndDate(date);
+                setEventsPreset("custom");
+              }}
+              maxDate={today}
+              disabled={ga4EventsLoading}
+            />
+          </div>
+        </div>
+
+        {ga4EventsLoading ? (
+          <div className="flex items-center justify-center py-10">
+            <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+            <span className="ml-2 text-sm text-gray-600">
+              Loading events...
+            </span>
+          </div>
+        ) : ga4EventsTop10.length === 0 ? (
+          <div className="flex items-center justify-center py-10 text-sm text-gray-500">
+            No events found for the selected range.
+          </div>
+        ) : (
+          <>
+            <div className="space-y-2">
+              {ga4EventsTop10.map((event) => {
+                const maxCount = Math.max(
+                  ...ga4EventsTop10.map((e) => Number(e.eventCount) || 0)
+                );
+                const percentage =
+                  maxCount > 0
+                    ? ((Number(event.eventCount) || 0) / maxCount) * 100
+                    : 0;
+                const barWidth = Math.max(8, Math.min(percentage, 85));
+                return (
+                  <div
+                    key={event.eventName}
+                    className="group relative"
+                    title={`${event.eventName.replace(/_/g, " ")}: ${(
+                      Number(event.eventCount) || 0
+                    ).toLocaleString()} events`}
+                  >
+                    <div className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50 transition-colors">
+                      <span className="text-sm font-medium text-gray-900 capitalize">
+                        {event.eventName.replace(/_/g, " ")}
+                      </span>
+                      <span className="text-sm font-semibold text-gray-900">
+                        {formatNumber(Number(event.eventCount) || 0)}
+                      </span>
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-blue-500 transition-all duration-300"
+                        style={{ width: `${barWidth}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-6 flex justify-end">
+              <Link
+                to={ADMIN_ROUTES.EVENTS}
+                className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline inline-flex items-center gap-1"
+              >
+                View events →
+              </Link>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Geography & Device Analytics */}
@@ -2970,13 +3117,16 @@ const DashboardTest: React.FC = () => {
                   onChange={(e) => {
                     const v = e.target.value;
                     setGeoFilter(v);
-                    // auto-populate date range for the selected preset
-                    const { startDate, endDate } = getDateRangeForPreset(v);
-                    setGeoStartDate(startDate);
-                    setGeoEndDate(endDate);
+                    if (v !== "custom") {
+                      // auto-populate date range for the selected preset
+                      const { startDate, endDate } = getDateRangeForPreset(v);
+                      setGeoStartDate(startDate);
+                      setGeoEndDate(endDate);
+                    }
                   }}
                   disabled={demographicsLoading}
                 >
+                  <option value="custom">Custom</option>
                   <option value="today">Today</option>
                   <option value="yesterday">Yesterday</option>
                   <option value="last7">Last 7 days</option>
@@ -2991,26 +3141,19 @@ const DashboardTest: React.FC = () => {
                   <option value="thisYear">This year</option>
                   <option value="lastCalendarYear">Last calendar year</option>
                 </select>
-                <input
-                  type="date"
-                  className="border border-gray-300 rounded px-2 py-1 text-xs"
-                  value={geoStartDate}
-                  max={geoEndDate || today}
-                  onChange={(e) => setGeoStartDate(e.target.value)}
-                  placeholder="Start Date"
-                  style={{ minWidth: 110 }}
-                  disabled={demographicsLoading}
-                />
-                <span className="text-xs text-gray-500">to</span>
-                <input
-                  type="date"
-                  className="border border-gray-300 rounded px-2 py-1 text-xs"
-                  value={geoEndDate}
-                  min={geoStartDate}
-                  max={today}
-                  onChange={(e) => setGeoEndDate(e.target.value)}
-                  placeholder="End Date"
-                  style={{ minWidth: 110 }}
+
+                <DateRangePicker
+                  startDate={geoStartDate}
+                  endDate={geoEndDate}
+                  onStartDateChange={(date) => {
+                    setGeoStartDate(date);
+                    setGeoFilter("custom");
+                  }}
+                  onEndDateChange={(date) => {
+                    setGeoEndDate(date);
+                    setGeoFilter("custom");
+                  }}
+                  maxDate={today}
                   disabled={demographicsLoading}
                 />
               </div>
@@ -3072,27 +3215,30 @@ const DashboardTest: React.FC = () => {
 
         {/* Device Distribution */}
         <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between mb-6 gap-3">
-            <div>
+          <div className="mb-6">
+            <div className="mb-2">
               <h2 className="text-lg font-semibold text-gray-900 mb-1">
                 Device Distribution
               </h2>
               <p className="text-sm text-gray-500">Platform breakdown</p>
             </div>
 
-            <div className="ml-auto flex flex-col sm:flex-row sm:items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
               <select
-                className="px-2 py-1 text-xs rounded-lg font-medium border bg-white text-gray-700 border-gray-200 focus:outline-none min-w-0"
+                className="px-2 py-1 text-xs rounded-lg font-medium border bg-white text-gray-700 border-gray-200 focus:outline-none"
                 value={deviceFilter}
                 onChange={(e) => {
                   const v = e.target.value;
                   setDeviceFilter(v);
-                  const { startDate, endDate } = getDateRangeForPreset(v);
-                  setDeviceStartDate(startDate);
-                  setDeviceEndDate(endDate);
+                  if (v !== "custom") {
+                    const { startDate, endDate } = getDateRangeForPreset(v);
+                    setDeviceStartDate(startDate);
+                    setDeviceEndDate(endDate);
+                  }
                 }}
                 disabled={platformsLoading}
               >
+                <option value="custom">Custom</option>
                 <option value="today">Today</option>
                 <option value="yesterday">Yesterday</option>
                 <option value="last7">Last 7 days</option>
@@ -3108,32 +3254,20 @@ const DashboardTest: React.FC = () => {
                 <option value="lastCalendarYear">Last calendar year</option>
               </select>
 
-              <div className="flex items-center gap-2 min-w-0">
-                <input
-                  type="date"
-                  className="border border-gray-300 rounded px-2 py-1 text-xs w-28 sm:w-[110px] min-w-0"
-                  value={deviceStartDate}
-                  max={deviceEndDate || today}
-                  onChange={(e) => {
-                    setDeviceStartDate(e.target.value);
-                    setDeviceFilter("");
-                  }}
-                  disabled={platformsLoading}
-                />
-                <span className="text-xs text-gray-500">to</span>
-                <input
-                  type="date"
-                  className="border border-gray-300 rounded px-2 py-1 text-xs w-28 sm:w-[110px] min-w-0"
-                  value={deviceEndDate}
-                  min={deviceStartDate}
-                  max={today}
-                  onChange={(e) => {
-                    setDeviceEndDate(e.target.value);
-                    setDeviceFilter("");
-                  }}
-                  disabled={platformsLoading}
-                />
-              </div>
+              <DateRangePicker
+                startDate={deviceStartDate}
+                endDate={deviceEndDate}
+                onStartDateChange={(date) => {
+                  setDeviceStartDate(date);
+                  setDeviceFilter("custom");
+                }}
+                onEndDateChange={(date) => {
+                  setDeviceEndDate(date);
+                  setDeviceFilter("custom");
+                }}
+                maxDate={today}
+                disabled={platformsLoading}
+              />
             </div>
           </div>
 

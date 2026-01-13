@@ -82,6 +82,18 @@ export const patch = (url: string, data?: any) => {
   return api.patch(url, data, config);
 };
 
+export const put = (url: string, data?: any) => {
+  const config: AxiosRequestConfig = {
+    headers: {
+      Authorization: `Bearer ${getToken()}`,
+    },
+  };
+  if (!(data instanceof FormData)) {
+    config.headers!["Content-Type"] = "application/json";
+  }
+  return api.put(url, data, config);
+};
+
 export const remove = (url: string, data?: any) => {
   const config: AxiosRequestConfig = {
     headers: {

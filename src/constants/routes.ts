@@ -21,6 +21,8 @@ export const ADMIN_ROUTES = {
   MORE: "/more",
   SUPPORT: "/support",
   UNINSTALL: "/uninstall",
+  EVENTS: "/events",
+  FUNNEL_ANALYTICS: "/funnel-analytics",
 };
 
 // API Endpoints Constants (for reference, actual endpoints are in url_helper.ts)
@@ -66,4 +68,3 @@ export const API_ENDPOINTS = {
     STATS: "/api/dashboard/stats",
   },
 };
-

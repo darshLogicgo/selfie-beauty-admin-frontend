@@ -24,6 +24,11 @@ export function getDateRangeForPreset(preset: string, refDate?: Date) {
       start = new Date(yesterday);
       end = new Date(yesterday);
       break;
+    case "last2":
+      end = new Date(yesterday);
+      start = new Date(end);
+      start.setDate(end.getDate() - 1); // Day before yesterday
+      break;
     case "last7":
       end = new Date(yesterday);
       start = new Date(end);
