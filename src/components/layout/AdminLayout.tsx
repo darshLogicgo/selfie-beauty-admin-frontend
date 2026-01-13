@@ -14,7 +14,7 @@ const AdminLayout: React.FC = () => {
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
-      <main className="ml-64 min-h-screen">
+      <main className="ml-20 min-h-screen">
         <div className="p-8">
           <Outlet />
         </div>

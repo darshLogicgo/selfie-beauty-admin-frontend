@@ -9,6 +9,12 @@ import {
   getGA4EngagementTime,
   getGA4UserActivityOverTime,
   getGA4UserRetention,
+  getGA4Events,
+  getGA4EventsOverTime,
+  getGA4EventNames,
+  getGA4FunnelData,
+  getGA4FunnelAnalysis,
+  getGA4UsersFunnel,
 } from "../../helpers/backend_helper";
 
 // ============================================
@@ -178,6 +184,136 @@ export const getGA4UserRetentionThunk = createAsyncThunk(
     } catch (error: any) {
       const errorMessage =
         error.response?.data?.message || "Failed to fetch user retention";
+      return rejectWithValue({
+        status: error.response?.status,
+        message: errorMessage,
+      });
+    }
+  }
+);
+
+export const getGA4EventsThunk = createAsyncThunk(
+  "getGA4EventsThunk",
+  async (queryString: string | undefined = undefined, { rejectWithValue }) => {
+    try {
+      const response = await getGA4Events(queryString);
+      return response.data;
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message || "Failed to fetch GA4 events";
+      return rejectWithValue({
+        status: error.response?.status,
+        message: errorMessage,
+      });
+    }
+  }
+);
+
+export const getGA4EventsOverTimeThunk = createAsyncThunk(
+  "getGA4EventsOverTimeThunk",
+  async (queryString: string | undefined = undefined, { rejectWithValue }) => {
+    try {
+      const response = await getGA4EventsOverTime(queryString);
+      return response.data;
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message || "Failed to fetch events over time";
+      return rejectWithValue({
+        status: error.response?.status,
+        message: errorMessage,
+      });
+    }
+  }
+);
+
+export const getGA4FunnelDataThunk = createAsyncThunk(
+  "getGA4FunnelDataThunk",
+  async (queryString: string | undefined = undefined, { rejectWithValue }) => {
+    try {
+      const response = await getGA4FunnelData(queryString);
+      return response.data;
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message || "Failed to fetch funnel data";
+      return rejectWithValue({
+        status: error.response?.status,
+        message: errorMessage,
+      });
+    }
+  }
+);
+
+export const getGA4EventNamesThunk = createAsyncThunk(
+  "getGA4EventNamesThunk",
+  async (queryString: string | undefined = undefined, { rejectWithValue }) => {
+    try {
+      const response = await getGA4EventNames(queryString);
+      return response.data;
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message || "Failed to fetch event names";
+      return rejectWithValue({
+        status: error.response?.status,
+        message: errorMessage,
+      });
+    }
+  }
+);
+
+export const getGA4FunnelAnalysisThunk = createAsyncThunk(
+  "getGA4FunnelAnalysisThunk",
+  async (
+    data: {
+      eventNames: string[];
+      startDate: string;
+      endDate: string;
+      deviceCategory?: string;
+      country?: string;
+    },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await getGA4FunnelAnalysis(data);
+      return response.data;
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message || "Failed to fetch funnel analysis";
+      return rejectWithValue({
+        status: error.response?.status,
+        message: errorMessage,
+      });
+    }
+  }
+);
+
+export const getGA4UsersFunnelThunk = createAsyncThunk(
+  "getGA4UsersFunnelThunk",
+  async (
+    {
+      body,
+      queryParams,
+    }: {
+      body?: {
+        eventNames?: string[];
+        dimension?: string;
+        elapsedTime?: boolean;
+        segments?: Array<{ value: string; type: string }>;
+      };
+      queryParams?: {
+        startDate?: string;
+        endDate?: string;
+        row?: number;
+        savedFunnelId?: string;
+      };
+    },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await getGA4UsersFunnel(body, queryParams);
+      return response.data;
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message || "Failed to fetch users funnel";
       return rejectWithValue({
         status: error.response?.status,
         message: errorMessage,

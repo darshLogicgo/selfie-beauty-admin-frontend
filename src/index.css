@@ -1,8 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
 
 @layer base {
   :root {
@@ -52,15 +51,34 @@
     --sidebar-ring: 234 89% 58%;
     --sidebar-muted: 220 9% 60%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(234, 89%, 58%) 0%, hsl(250, 89%, 65%) 100%);
-    --gradient-success: linear-gradient(135deg, hsl(142, 76%, 36%) 0%, hsl(142, 71%, 45%) 100%);
-    --gradient-warning: linear-gradient(135deg, hsl(38, 92%, 50%) 0%, hsl(45, 93%, 47%) 100%);
-    --gradient-info: linear-gradient(135deg, hsl(199, 89%, 48%) 0%, hsl(199, 89%, 58%) 100%);
+    --gradient-primary: linear-gradient(
+      135deg,
+      hsl(234, 89%, 58%) 0%,
+      hsl(250, 89%, 65%) 100%
+    );
+    --gradient-success: linear-gradient(
+      135deg,
+      hsl(142, 76%, 36%) 0%,
+      hsl(142, 71%, 45%) 100%
+    );
+    --gradient-warning: linear-gradient(
+      135deg,
+      hsl(38, 92%, 50%) 0%,
+      hsl(45, 93%, 47%) 100%
+    );
+    --gradient-info: linear-gradient(
+      135deg,
+      hsl(199, 89%, 48%) 0%,
+      hsl(199, 89%, 58%) 100%
+    );
 
     --shadow-sm: 0 1px 2px 0 hsl(220 13% 91% / 0.5);
-    --shadow-md: 0 4px 6px -1px hsl(220 13% 91% / 0.5), 0 2px 4px -2px hsl(220 13% 91% / 0.5);
-    --shadow-lg: 0 10px 15px -3px hsl(220 13% 91% / 0.5), 0 4px 6px -4px hsl(220 13% 91% / 0.5);
-    --shadow-card: 0 1px 3px hsl(220 13% 91% / 0.3), 0 1px 2px -1px hsl(220 13% 91% / 0.3);
+    --shadow-md: 0 4px 6px -1px hsl(220 13% 91% / 0.5),
+      0 2px 4px -2px hsl(220 13% 91% / 0.5);
+    --shadow-lg: 0 10px 15px -3px hsl(220 13% 91% / 0.5),
+      0 4px 6px -4px hsl(220 13% 91% / 0.5);
+    --shadow-card: 0 1px 3px hsl(220 13% 91% / 0.3),
+      0 1px 2px -1px hsl(220 13% 91% / 0.3);
   }
 
   .dark {
@@ -105,7 +123,7 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    font-family: 'Inter', sans-serif;
+    font-family: "Inter", sans-serif;
   }
 }
 
@@ -131,11 +149,84 @@
   }
 
   .sidebar-item {
-    @apply flex items-center gap-3 px-4 py-3 rounded-lg text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-all duration-200;
+    @apply flex items-center gap-3 px-4 py-2.5 rounded-lg text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-all duration-200 relative;
+  }
+
+  .sidebar-item.justify-center {
+    @apply px-3;
   }
 
   .sidebar-item-active {
-    @apply bg-sidebar-primary text-sidebar-primary-foreground shadow-md;
+    @apply bg-sidebar-primary/10 text-sidebar-foreground font-semibold;
+  }
+
+  .sidebar-item:hover {
+    @apply transform;
+  }
+
+  .sidebar-item:active {
+    @apply scale-[0.98];
+  }
+
+  /* Custom scrollbar for sidebar */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-sidebar-accent rounded-full;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    @apply bg-sidebar-accent/80;
+  }
+
+  /* Funnel tabs wrapper - ensures proper width constraints */
+  .funnel-tabs-wrapper {
+    max-width: calc(100% - 160px) !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+
+  /* Custom horizontal scrollbar for funnel tabs */
+  .funnel-tabs-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.4) transparent;
+    -webkit-overflow-scrolling: touch;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    position: relative;
+    /* Force scrollbar to always be visible when content overflows */
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+  }
+
+  .funnel-tabs-scroll::-webkit-scrollbar {
+    height: 8px;
+    display: block;
+    visibility: visible;
+  }
+
+  .funnel-tabs-scroll::-webkit-scrollbar-track {
+    background: hsl(var(--muted) / 0.15);
+    border-radius: 4px;
+  }
+
+  .funnel-tabs-scroll::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/50 rounded-full;
+    border-radius: 4px;
+    min-height: 8px;
+  }
+
+  .funnel-tabs-scroll::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/70;
   }
 
   .page-header {

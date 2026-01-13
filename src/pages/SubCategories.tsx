@@ -252,7 +252,7 @@ const SubCategories: React.FC = () => {
   };
 
   const [newImages, setNewImages] = useState<
-    Array<{ url: string; file?: File; preview?: string }>
+    Array<{ url: string; file?: File; preview?: string; prompt?: string }>
   >([]);
   const imageFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -394,7 +394,10 @@ const SubCategories: React.FC = () => {
         const reader = new FileReader();
         reader.onloadend = () => {
           const preview = reader.result as string;
-          setNewImages((prev) => [...prev, { url: "", file, preview }]);
+          setNewImages((prev) => [
+            ...prev,
+            { url: "", file, preview, prompt: "" },
+          ]);
         };
         reader.readAsDataURL(file);
       });
@@ -407,8 +410,16 @@ const SubCategories: React.FC = () => {
 
   const handleAddImageUrl = (url: string) => {
     if (url.trim()) {
-      setNewImages((prev) => [...prev, { url: url.trim() }]);
+      setNewImages((prev) => [...prev, { url: url.trim(), prompt: "" }]);
     }
+  };
+
+  const handleUpdateImagePrompt = (index: number, prompt: string) => {
+    setNewImages((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], prompt };
+      return updated;
+    });
   };
 
   const handleRemoveNewImage = (index: number) => {
@@ -448,7 +459,10 @@ const SubCategories: React.FC = () => {
           formDataToSend.append("country", values.country.trim());
         }
         if (values.android_appVersion && values.android_appVersion.trim()) {
-          formDataToSend.append("android_appVersion", values.android_appVersion.trim());
+          formDataToSend.append(
+            "android_appVersion",
+            values.android_appVersion.trim()
+          );
         }
         if (values.ios_appVersion && values.ios_appVersion.trim()) {
           formDataToSend.append("ios_appVersion", values.ios_appVersion.trim());
@@ -456,7 +470,8 @@ const SubCategories: React.FC = () => {
 
         // Always send categoryId when updating (required by validation)
         // Use form value or fallback to existing subcategory's categoryId
-        const categoryIdToSend = values.categoryId || (editingSubCategory as any).categoryId;
+        const categoryIdToSend =
+          values.categoryId || (editingSubCategory as any).categoryId;
         if (categoryIdToSend) {
           formDataToSend.append("categoryId", categoryIdToSend);
         }
@@ -527,7 +542,10 @@ const SubCategories: React.FC = () => {
           formDataToSend.append("country", values.country.trim());
         }
         if (values.android_appVersion && values.android_appVersion.trim()) {
-          formDataToSend.append("android_appVersion", values.android_appVersion.trim());
+          formDataToSend.append(
+            "android_appVersion",
+            values.android_appVersion.trim()
+          );
         }
         if (values.ios_appVersion && values.ios_appVersion.trim()) {
           formDataToSend.append("ios_appVersion", values.ios_appVersion.trim());
@@ -655,49 +673,76 @@ const SubCategories: React.FC = () => {
       newImages.length > 0
     ) {
       // Filter only files (not URLs) as API expects files
-      const imageFiles = newImages
-        .filter((img) => img.file)
-        .map((img) => img.file!);
+      const imagesWithFiles = newImages.filter((img) => img.file);
 
-      if (imageFiles.length === 0) {
+      if (imagesWithFiles.length === 0) {
         toast.error("Please upload image files. URLs are not supported.");
         return;
       }
 
-      // Create FormData with multiple asset_images fields
-      const formDataToSend = new FormData();
-      imageFiles.forEach((file) => {
-        formDataToSend.append("asset_images", file);
-      });
-
-      // Call API
-      const result = await dispatch(
-        addSubCategoryAssetsThunk({
-          id: selectedSubCategory._id,
-          formData: formDataToSend,
-        })
-      );
-
-      if (addSubCategoryAssetsThunk.fulfilled.match(result)) {
-        // Clean up preview URLs
-        newImages.forEach((img) => {
-          if (img.preview) {
-            URL.revokeObjectURL(img.preview);
+      // Upload each image individually with its own prompt (in parallel for better performance)
+      // This allows each image to have its specific prompt without backend changes
+      const uploadPromises = imagesWithFiles.map(async (img) => {
+        try {
+          // Create FormData for each image with its prompt
+          const formDataToSend = new FormData();
+          formDataToSend.append("asset_images", img.file!);
+          if (img.prompt && img.prompt.trim()) {
+            formDataToSend.append("prompt", img.prompt.trim());
           }
-        });
-        setNewImages([]);
-        // Refresh assets after adding images
-        if (selectedSubCategory && selectedSubCategory._id) {
-          await dispatch(
-            getSubCategoryAssetsThunk({
+
+          // Call API for each image
+          const result = await dispatch(
+            addSubCategoryAssetsThunk({
               id: selectedSubCategory._id,
-              queryParams: { page: currentAssetPage, limit: 10 },
+              formData: formDataToSend,
             })
           );
+
+          return addSubCategoryAssetsThunk.fulfilled.match(result)
+            ? { success: true }
+            : { success: false };
+        } catch (error) {
+          console.error("Error uploading image:", error);
+          return { success: false };
         }
-        // Refresh subcategories list
-        dispatch(getSubCategoryThunk(undefined));
+      });
+
+      // Wait for all uploads to complete
+      const results = await Promise.all(uploadPromises);
+      const successCount = results.filter((r) => r.success).length;
+      const failCount = results.filter((r) => !r.success).length;
+
+      // Show success/error messages
+      if (successCount > 0) {
+        toast.success(
+          `Successfully uploaded ${successCount} image(s)${
+            failCount > 0 ? `. ${failCount} failed.` : ""
+          }`
+        );
+      } else if (failCount > 0) {
+        toast.error(`Failed to upload ${failCount} image(s)`);
       }
+
+      // Clean up preview URLs
+      newImages.forEach((img) => {
+        if (img.preview) {
+          URL.revokeObjectURL(img.preview);
+        }
+      });
+      setNewImages([]);
+
+      // Refresh assets after adding images
+      if (selectedSubCategory && selectedSubCategory._id) {
+        await dispatch(
+          getSubCategoryAssetsThunk({
+            id: selectedSubCategory._id,
+            queryParams: { page: currentAssetPage, limit: 10 },
+          })
+        );
+      }
+      // Refresh subcategories list
+      dispatch(getSubCategoryThunk(undefined));
     }
   };
 
@@ -1180,7 +1225,10 @@ const SubCategories: React.FC = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="ios_appVersion" className="text-sm font-semibold">
+                <Label
+                  htmlFor="ios_appVersion"
+                  className="text-sm font-semibold"
+                >
                   iOS App Version
                 </Label>
                 <Input
@@ -1365,7 +1413,8 @@ const SubCategories: React.FC = () => {
                     <div className="mt-2 relative inline-block">
                       <div className="relative">
                         {(() => {
-                          const src = videoPreviews.video_sqr || formik.values.video_sqr;
+                          const src =
+                            videoPreviews.video_sqr || formik.values.video_sqr;
                           if (!isUsableMediaSrc(src)) return null;
                           return (
                             <video
@@ -1446,7 +1495,8 @@ const SubCategories: React.FC = () => {
                     <div className="mt-2 relative inline-block">
                       <div className="relative">
                         {(() => {
-                          const src = videoPreviews.video_rec || formik.values.video_rec;
+                          const src =
+                            videoPreviews.video_rec || formik.values.video_rec;
                           if (!isUsableMediaSrc(src)) return null;
                           return (
                             <video
@@ -1642,9 +1692,9 @@ const SubCategories: React.FC = () => {
                   <Label className="text-sm font-semibold">
                     New Images ({newImages.length})
                   </Label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-64 overflow-y-auto p-2 border rounded-lg bg-muted/30">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto p-2 border rounded-lg bg-muted/30">
                     {newImages.map((img, idx) => (
-                      <div key={idx} className="relative group">
+                      <div key={idx} className="relative group space-y-2">
                         <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-border bg-muted">
                           {img.preview ? (
                             <img
@@ -1679,7 +1729,7 @@ const SubCategories: React.FC = () => {
                             type="button"
                             variant="destructive"
                             size="icon"
-                            className="absolute top-1 right-1 w-6 h-6 rounded-full shadow-md hover:scale-110 transition-transform opacity-0 group-hover:opacity-100"
+                            className="absolute top-1 right-1 w-6 h-6 rounded-full shadow-md hover:scale-110 transition-transform opacity-0 group-hover:opacity-100 z-10"
                             onClick={() => handleRemoveNewImage(idx)}
                           >
                             <X className="w-3 h-3" />
@@ -1689,6 +1739,21 @@ const SubCategories: React.FC = () => {
                               {img.file.name}
                             </div>
                           )}
+                        </div>
+                        {/* Prompt Input */}
+                        <div className="space-y-1">
+                          <Label className="text-xs font-medium text-muted-foreground">
+                            Prompt (Optional)
+                          </Label>
+                          <Input
+                            type="text"
+                            placeholder="Enter prompt for this image..."
+                            value={img.prompt || ""}
+                            onChange={(e) =>
+                              handleUpdateImagePrompt(idx, e.target.value)
+                            }
+                            className="h-9 text-sm"
+                          />
                         </div>
                       </div>
                     ))}

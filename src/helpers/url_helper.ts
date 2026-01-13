@@ -134,4 +134,11 @@ export const GA4_API = {
   ENGAGEMENT_TIME: API + "/ga4/engagement-time",
   USER_ACTIVITY_OVER_TIME: API + "/ga4/users/activity-over-time",
   USER_RETENTION: API + "/ga4/users/retention",
+  EVENTS: API + "/ga4/events",
+  EVENTS_OVER_TIME: API + "/ga4/events/over-time",
+  EVENT_NAMES: API + "/ga4/events/names",
+  FUNNEL: API + "/ga4/funnel",
+  FUNNEL_ANALYSIS: API + "/ga4/funnel/analysis",
+  USERS_FUNNEL: API + "/ga4/users/funnel",
+  DIMENSIONS_COUNTRY: API + "/ga4/dimensions/country",
 };

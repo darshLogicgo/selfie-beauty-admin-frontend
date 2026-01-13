@@ -407,6 +407,142 @@ export const getGA4UserRetention = (queryString?: string) => {
   return api.get(urlWithParams);
 };
 
+export const getGA4Events = (queryString?: string) => {
+  let urlWithParams = url.GA4_API.EVENTS;
+  if (queryString) {
+    urlWithParams += `?${queryString}`;
+  }
+  return api.get(urlWithParams);
+};
+
+export const getGA4EventsOverTime = (queryString?: string) => {
+  let urlWithParams = url.GA4_API.EVENTS_OVER_TIME;
+  if (queryString) {
+    urlWithParams += `?${queryString}`;
+  }
+  return api.get(urlWithParams);
+};
+
+export const getGA4EventNames = (queryString?: string) => {
+  let urlWithParams = url.GA4_API.EVENT_NAMES;
+  if (queryString) {
+    urlWithParams += `?${queryString}`;
+  }
+  return api.get(urlWithParams);
+};
+
+export const getGA4FunnelData = (queryString?: string) => {
+  let urlWithParams = url.GA4_API.FUNNEL;
+  if (queryString) {
+    urlWithParams += `?${queryString}`;
+  }
+  return api.get(urlWithParams);
+};
+
+export const getGA4FunnelAnalysis = (data: {
+  eventNames: string[];
+  startDate: string;
+  endDate: string;
+  deviceCategory?: string;
+  country?: string;
+}) => {
+  return api.post(url.GA4_API.FUNNEL_ANALYSIS, data);
+};
+
+export const getGA4UsersFunnel = (
+  body?: {
+    eventNames?: string[];
+    dimension?: string;
+    elapsedTime?: boolean;
+    segments?: Array<{ value: string; type: string }>;
+  },
+  queryParams?: {
+    startDate?: string;
+    endDate?: string;
+    row?: number;
+    savedFunnelId?: string;
+  }
+) => {
+  // Build URL with query params
+  let urlWithParams = url.GA4_API.USERS_FUNNEL;
+  if (queryParams) {
+    const params = new URLSearchParams();
+    if (queryParams.startDate)
+      params.append("startDate", queryParams.startDate);
+    if (queryParams.endDate) params.append("endDate", queryParams.endDate);
+    if (queryParams.row !== undefined)
+      params.append("row", String(queryParams.row));
+    if (queryParams.savedFunnelId)
+      params.append("savedFunnelId", queryParams.savedFunnelId);
+    const queryString = params.toString();
+    if (queryString) {
+      urlWithParams += `?${queryString}`;
+    }
+  }
+  // API is a POST request - send body data
+  return api.post(urlWithParams, body || {});
+};
+
+export const getGA4CountryDimensions = (queryParams?: {
+  startDate?: string;
+  endDate?: string;
+}) => {
+  // Build URL with query params
+  let urlWithParams = url.GA4_API.DIMENSIONS_COUNTRY;
+  if (queryParams) {
+    const params = new URLSearchParams();
+    if (queryParams.startDate)
+      params.append("startDate", queryParams.startDate);
+    if (queryParams.endDate) params.append("endDate", queryParams.endDate);
+    const queryString = params.toString();
+    if (queryString) {
+      urlWithParams += `?${queryString}`;
+    }
+  }
+  return api.get(urlWithParams);
+};
+
+export const getGA4AppVersionDimensions = () => {
+  return api.get(url.GA4_API.USER_APP_VERSIONS);
+};
+
+export const saveGA4UsersFunnel = (data: {
+  name: string;
+  groupId?: string;
+  eventNames: string[];
+  startDate: string;
+  endDate: string;
+  dimension: string;
+  row: number;
+  segments: Array<{ value: string[] | string; type: string }>;
+}) => {
+  return api.post("/api/v1/ga4/users/funnel/save", data);
+};
+
+export const updateFunnelName = (funnelId: string, data: { name: string }) => {
+  return api.put(`/api/v1/ga4/users/funnel/saved/${funnelId}`, data);
+};
+
+export const getSavedFunnels = () => {
+  return api.get("/api/v1/ga4/users/funnel/saved");
+};
+
+export const getSavedFunnelGroups = () => {
+  return api.get("/api/v1/ga4/users/funnel/group");
+};
+
+export const createFunnelGroup = (data: { name: string }) => {
+  return api.post("/api/v1/ga4/users/funnel/group", data);
+};
+
+export const getGroupFunnels = (groupId: string) => {
+  return api.get(`/api/v1/ga4/users/funnel/group/${groupId}/funnels`);
+};
+
+export const deleteFunnelGroup = (groupId: string) => {
+  return api.remove(`/api/v1/ga4/users/funnel/group/${groupId}`);
+};
+
 // ============================================
 // Live Status API Functions
 // ============================================
@@ -441,8 +577,8 @@ export const getFeaturePerformance = async () => {
     const json = response?.data || {};
 
     // Use the new API response structure
-    if (json.data?.feature_performance) {
-      const features = json.data.feature_performance.map((f: any) => ({
+    if (json.data?.most_used_features) {
+      const features = json.data.most_used_features.map((f: any) => ({
         feature: f.feature,
         uses: f.uses,
         color: f.color,
@@ -456,12 +592,14 @@ export const getFeaturePerformance = async () => {
       // Return features with additional metrics
       const result = {
         features: sortedFeatures,
-        totalUses: json.data.totalUses || sortedFeatures.reduce((sum, f) => sum + f.uses, 0),
+        totalUses:
+          json.data.totalUses ||
+          sortedFeatures.reduce((sum, f) => sum + f.uses, 0),
         paywallHits: json.data.paywallHits || 0,
         usageRate: json.data.usageRate || 0,
         conversionRate: json.data.conversionRate || 0,
       };
-      
+
       return result;
     }
 
@@ -478,9 +616,21 @@ export const getFeaturePerformance = async () => {
   }
 };
 
-export const getDeviceDistribution = async () => {
+export const getDeviceDistribution = async (
+  startDate?: string,
+  endDate?: string
+) => {
   try {
-    const response = await api.get(url.DASHBOARD_API.DEVICE_DISTRIBUTION);
+    const params = new URLSearchParams();
+    if (startDate) params.append("startDate", startDate);
+    if (endDate) params.append("endDate", endDate);
+
+    const queryString = params.toString();
+    const endpoint = queryString
+      ? `${url.DASHBOARD_API.DEVICE_DISTRIBUTION}?${queryString}`
+      : url.DASHBOARD_API.DEVICE_DISTRIBUTION;
+
+    const response = await api.get(endpoint);
 
     const json = response?.data || {};
 
@@ -501,7 +651,7 @@ export const getDeviceDistribution = async () => {
         },
         total: json.data.total || 0,
       };
-      
+
       return result;
     } else {
       return {
@@ -527,6 +677,7 @@ export const getLiveStatus = async (
   if (startDate) queryParams.startDate = startDate;
   if (endDate) queryParams.endDate = endDate;
 
+<<<<<<< HEAD
   const queryString = new URLSearchParams(queryParams).toString();
   const fullUrl = `${LIVE_STATUS_BASE_URL}/live-status${
     queryString ? `?${queryString}` : ""
@@ -538,6 +689,11 @@ export const getLiveStatus = async (
       "Content-Type": "application/json",
     },
   });
+=======
+  return api.get(
+    `${url.DASHBOARD_API.LIVE_STATUS}?${new URLSearchParams(queryParams)}`
+  );
+>>>>>>> 91e744c7c9060c723d95d55fdf1987fd63513fec
 };
 
 // ============================================
@@ -555,29 +711,31 @@ export const getExternalLiveStatus = async (
   if (startDate) queryParams.startDate = startDate;
   if (endDate) queryParams.endDate = endDate;
 
-  const promises = Object.entries(LIVE_STATUS_ENDPOINTS).map(async ([categoryKey, endpoint]) => {
-    try {
-      const queryString = new URLSearchParams(queryParams).toString();
-      const fullUrl = `${LIVE_STATUS_BASE_URL}${endpoint}${
-        queryString ? `?${queryString}` : ""
-      }`;
+  const promises = Object.entries(LIVE_STATUS_ENDPOINTS).map(
+    async ([categoryKey, endpoint]) => {
+      try {
+        const queryString = new URLSearchParams(queryParams).toString();
+        const fullUrl = `${LIVE_STATUS_BASE_URL}${endpoint}${
+          queryString ? `?${queryString}` : ""
+        }`;
 
-      const response = await axios.get(fullUrl, {
-        headers: {
-          Authorization: `Bearer ${STATIC_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-      });
+        const response = await axios.get(fullUrl, {
+          headers: {
+            Authorization: `Bearer ${STATIC_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+        });
 
-      return { categoryKey, data: response.data };
-    } catch (error: any) {
-      return {
-        categoryKey,
-        data: null,
-        error: error.response?.data?.message || "Failed to fetch",
-      };
+        return { categoryKey, data: response.data };
+      } catch (error: any) {
+        return {
+          categoryKey,
+          data: null,
+          error: error.response?.data?.message || "Failed to fetch",
+        };
+      }
     }
-  });
+  );
 
   const results = await Promise.all(promises);
 

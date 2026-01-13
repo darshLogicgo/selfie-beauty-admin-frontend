@@ -8,6 +8,12 @@ import {
   getGA4EngagementTimeThunk,
   getGA4UserActivityOverTimeThunk,
   getGA4UserRetentionThunk,
+  getGA4EventsThunk,
+  getGA4EventsOverTimeThunk,
+  getGA4FunnelDataThunk,
+  getGA4FunnelAnalysisThunk,
+  getGA4EventNamesThunk,
+  getGA4UsersFunnelThunk,
 } from "./thunk";
 
 interface MostUsedCategory {
@@ -52,6 +58,44 @@ interface CountryDemographic {
 interface UserDemographics {
   totalUsers: number;
   countries: CountryDemographic[];
+}
+
+interface GA4EventRow {
+  eventName: string;
+  eventCount: number;
+  totalUsers: number;
+  eventCountPerActiveUser: number;
+  totalRevenue: number;
+}
+
+interface GA4EventsState {
+  data: GA4EventRow[];
+  pagination: {
+    page: number;
+    totalPages: number;
+    totalItems: number;
+    limit: number;
+  };
+  dateRange: {
+    startDate: string;
+    endDate: string;
+  };
+  status?: boolean;
+  message?: string;
+}
+
+interface GA4EventsOverTimeState {
+  data: Array<{
+    date: string;
+    events: Record<string, number>;
+    totalEventCount: number;
+  }>;
+  dateRange: {
+    startDate: string;
+    endDate: string;
+  };
+  status?: boolean;
+  message?: string;
 }
 
 const initialState = {
@@ -123,6 +167,74 @@ const initialState = {
       retentionRate: number;
     }>,
   },
+  ga4EventsLoading: false,
+  ga4EventsError: null as string | null,
+  ga4Events: {
+    data: [],
+    pagination: { page: 1, totalPages: 0, totalItems: 0, limit: 25 },
+    dateRange: { startDate: "", endDate: "" },
+    status: false,
+    message: "",
+  } as GA4EventsState,
+  ga4EventsOverTimeLoading: false,
+  ga4EventsOverTimeError: null as string | null,
+  ga4EventsOverTime: {
+    data: [],
+    dateRange: { startDate: "", endDate: "" },
+    status: false,
+    message: "",
+  } as GA4EventsOverTimeState,
+  // Funnel Analytics State
+  funnelLoading: false,
+  funnelError: null as string | null,
+  funnelData: {
+    events: [] as Array<{
+      eventName: string;
+      eventCount: number;
+      displayName?: string;
+    }>,
+  },
+  funnelAnalysisLoading: false,
+  funnelAnalysisError: null as string | null,
+  funnelAnalysis: {
+    steps: [] as Array<{
+      eventName: string;
+      displayName: string;
+      users: number;
+      conversionRate: number;
+      dropoffRate: number;
+    }>,
+    totalUsers: 0,
+    overallConversion: 0,
+  },
+  // Event Names State
+  eventNamesLoading: false,
+  eventNamesError: null as string | null,
+  eventNames: {
+    data: [] as string[],
+  },
+  // Users Funnel State
+  usersFunnelLoading: false,
+  usersFunnelError: null as string | null,
+  usersFunnel: null as {
+    stages: Array<any>;
+    summary: {
+      totalUsersAtStart: number;
+      totalUsersAtEnd: number;
+      overallConversionRate: number;
+      totalStages: number;
+    };
+    dateRange: {
+      startDate: string;
+      endDate: string;
+    };
+    dimension: string | null;
+    segments?: string[];
+    segmentDetails?: Array<{
+      value: string;
+      type: string;
+    }>;
+  } | null,
 };
 
 const slice = createSlice({
@@ -303,6 +415,142 @@ const slice = createSlice({
       state.userRetentionError =
         (action.payload as { message?: string })?.message ||
         "Failed to fetch user retention";
+    });
+
+    // =================================  Get GA4 Events ==================================
+    builder.addCase(getGA4EventsThunk.pending, (state) => {
+      state.ga4EventsLoading = true;
+      state.ga4EventsError = null;
+    });
+    builder.addCase(getGA4EventsThunk.fulfilled, (state, action) => {
+      state.ga4EventsLoading = false;
+      state.ga4EventsError = null;
+      if (action.payload) {
+        state.ga4Events = action.payload as GA4EventsState;
+      }
+    });
+    builder.addCase(getGA4EventsThunk.rejected, (state, action) => {
+      state.ga4EventsLoading = false;
+      state.ga4EventsError =
+        (action.payload as { message?: string })?.message ||
+        "Failed to fetch GA4 events";
+    });
+
+    // =================================  Get GA4 Events Over Time ==================================
+    builder.addCase(getGA4EventsOverTimeThunk.pending, (state) => {
+      state.ga4EventsOverTimeLoading = true;
+      state.ga4EventsOverTimeError = null;
+    });
+    builder.addCase(getGA4EventsOverTimeThunk.fulfilled, (state, action) => {
+      state.ga4EventsOverTimeLoading = false;
+      state.ga4EventsOverTimeError = null;
+      if (action.payload) {
+        state.ga4EventsOverTime = action.payload as GA4EventsOverTimeState;
+      }
+    });
+    builder.addCase(getGA4EventsOverTimeThunk.rejected, (state, action) => {
+      state.ga4EventsOverTimeLoading = false;
+      state.ga4EventsOverTimeError =
+        (action.payload as { message?: string })?.message ||
+        "Failed to fetch events over time";
+    });
+
+    // =================================  Get GA4 Funnel Data ==================================
+    builder.addCase(getGA4FunnelDataThunk.pending, (state) => {
+      state.funnelLoading = true;
+      state.funnelError = null;
+    });
+    builder.addCase(getGA4FunnelDataThunk.fulfilled, (state, action) => {
+      state.funnelLoading = false;
+      state.funnelError = null;
+      if (action.payload?.data) {
+        state.funnelData = {
+          events: action.payload.data,
+        };
+      }
+    });
+    builder.addCase(getGA4FunnelDataThunk.rejected, (state, action) => {
+      state.funnelLoading = false;
+      state.funnelError =
+        (action.payload as { message?: string })?.message ||
+        "Failed to fetch funnel data";
+    });
+
+    // =================================  Get GA4 Funnel Analysis ==================================
+    builder.addCase(getGA4FunnelAnalysisThunk.pending, (state) => {
+      state.funnelAnalysisLoading = true;
+      state.funnelAnalysisError = null;
+    });
+    builder.addCase(getGA4FunnelAnalysisThunk.fulfilled, (state, action) => {
+      state.funnelAnalysisLoading = false;
+      state.funnelAnalysisError = null;
+      if (action.payload?.data) {
+        state.funnelAnalysis = action.payload.data;
+      }
+    });
+    builder.addCase(getGA4FunnelAnalysisThunk.rejected, (state, action) => {
+      state.funnelAnalysisLoading = false;
+      state.funnelAnalysisError =
+        (action.payload as { message?: string })?.message ||
+        "Failed to fetch funnel analysis";
+    });
+
+    // =================================  Get GA4 Event Names ==================================
+    builder.addCase(getGA4EventNamesThunk.pending, (state) => {
+      state.eventNamesLoading = true;
+      state.eventNamesError = null;
+    });
+    builder.addCase(getGA4EventNamesThunk.fulfilled, (state, action) => {
+      state.eventNamesLoading = false;
+      state.eventNamesError = null;
+      if (action.payload?.data) {
+        state.eventNames = {
+          data: action.payload.data,
+        };
+      }
+    });
+    builder.addCase(getGA4EventNamesThunk.rejected, (state, action) => {
+      state.eventNamesLoading = false;
+      state.eventNamesError =
+        (action.payload as { message?: string })?.message ||
+        "Failed to fetch event names";
+    });
+
+    // =================================  Get GA4 Users Funnel ==================================
+    builder.addCase(getGA4UsersFunnelThunk.pending, (state) => {
+      state.usersFunnelLoading = true;
+      state.usersFunnelError = null;
+    });
+    builder.addCase(getGA4UsersFunnelThunk.fulfilled, (state, action) => {
+      state.usersFunnelLoading = false;
+      state.usersFunnelError = null;
+      // Handle the API response structure: { message, data: { stages, summary, dimension }, status, dateRange }
+      // The thunk returns response.data, so action.payload is the full response object
+      if (action.payload) {
+        const responseData = action.payload.data || action.payload;
+        state.usersFunnel = {
+          stages: responseData.stages || [],
+          summary: responseData.summary || {
+            totalUsersAtStart: 0,
+            totalUsersAtEnd: 0,
+            overallConversionRate: 0,
+            totalStages: 0,
+          },
+          dateRange: action.payload.dateRange || {
+            startDate: "",
+            endDate: "",
+          },
+          dimension: responseData.dimension || null,
+          segments: responseData.segments || [],
+          segmentDetails: responseData.segmentDetails || [],
+        };
+      }
+    });
+    builder.addCase(getGA4UsersFunnelThunk.rejected, (state, action) => {
+      state.usersFunnelLoading = false;
+      state.usersFunnelError =
+        (action.payload as { message?: string })?.message ||
+        "Failed to fetch users funnel";
     });
   },
 });
