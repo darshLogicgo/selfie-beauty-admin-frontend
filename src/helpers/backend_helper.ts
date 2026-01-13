@@ -691,6 +691,9 @@ export const getLiveStatus = async (
       "Content-Type": "application/json",
     },
   });
+  return api.get(
+    `${url.DASHBOARD_API.LIVE_STATUS}?${new URLSearchParams(queryParams)}`
+  );
 };
 
 // ============================================
