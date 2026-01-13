@@ -7,9 +7,11 @@ import {
   deleteSubCategoryThunk,
   addSubCategoryAssetsThunk,
   deleteSubCategoryAssetThunk,
+  toggleSubCategoryPremiumThunk,
   getSubCategoryAssetsThunk,
   updateSubCategoryAssetThunk,
   reorderSubCategoryThunk,
+ 
 } from "./thunk";
 
 const initialState = {
@@ -277,7 +279,9 @@ const slice = createSlice({
         "Failed to reorder subcategories";
       state.message = "";
     });
-  },
+
+    
+      },
 });
 
 export const { clearSubCategorySingleData, clearSubCategoryData } =

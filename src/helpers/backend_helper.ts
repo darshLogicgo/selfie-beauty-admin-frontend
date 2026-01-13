@@ -34,6 +34,18 @@ export const toggleCategoryStatus = (id: string, status: boolean) => {
   return api.patch(`${url.CATEGORY_API.BASE}/${id}/status`, { status });
 };
 
+export const toggleCategoryAndroidActive = (id: string, isAndroid: boolean) => {
+  const formData = new FormData();
+  formData.append('isAndroid', isAndroid.toString());
+  return api.patch(`${url.CATEGORY_API.UPDATE}/${id}`, formData);
+};
+
+export const toggleCategoryIOSActive = (id: string, isIos: boolean) => {
+  const formData = new FormData();
+  formData.append('isIos', isIos.toString());
+  return api.patch(`${url.CATEGORY_API.UPDATE}/${id}`, formData);
+};
+
 export const reorderCategory = (data: {
   categories: Array<{ _id: string; order: number }>;
 }) => {
@@ -167,6 +179,8 @@ export const updateSubCategory = (id: string, data: FormData) => {
 export const toggleSubCategoryStatus = (id: string, status: boolean) => {
   return api.patch(`${url.SUB_CATEGORY_API.BASE}/${id}/status`, { status });
 };
+
+
 
 export const deleteSubCategory = (id: string) => {
   return api.remove(`${url.SUB_CATEGORY_API.DELETE}/${id}`);
@@ -533,8 +547,11 @@ export const deleteFunnelGroup = (groupId: string) => {
 // Live Status API Functions
 // ============================================
 const LIVE_STATUS_BASE_URL =
-  "https://logicgoinfotechspaces-beauty-camera-live-status.hf.space";
-const STATIC_TOKEN = "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"; // Static Bearer token - hardcoded, doesn't change
+  import.meta.env.VITE_LIVE_STATUS_BASE_URL 
+  
+const STATIC_TOKEN =
+  import.meta.env.VITE_STATIC_TOKEN 
+  
 
 // Category endpoints mapping
 const LIVE_STATUS_ENDPOINTS = {
@@ -663,6 +680,17 @@ export const getLiveStatus = async (
   return api.get(
     `${url.DASHBOARD_API.LIVE_STATUS}?${new URLSearchParams(queryParams)}`
   );
+  const queryString = new URLSearchParams(queryParams).toString();
+  const fullUrl = `${LIVE_STATUS_BASE_URL}/live-status${
+    queryString ? `?${queryString}` : ""
+  }`;
+
+  return axios.get(fullUrl, {
+    headers: {
+      Authorization: `Bearer ${STATIC_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+  });
 };
 
 // ============================================

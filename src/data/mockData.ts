@@ -14,6 +14,8 @@ export interface Category {
   _id?: string; // For MongoDB _id
   isPremium?: boolean;
   imageCount?: number;
+  isAndroid?: boolean;
+  isIos?: boolean;
 }
 
 export interface SubCategory {
@@ -27,6 +29,8 @@ export interface SubCategory {
   country?: string;
   android_appVersion?: string;
   ios_appVersion?: string;
+  isAndroid?: boolean;
+  isIos?: boolean;
 }
 
 export interface User {

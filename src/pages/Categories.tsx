@@ -12,7 +12,7 @@ import DraggableTable from '@/components/ui/DraggableTable';
 import { mockCategories, Category } from '@/data/mockData';
 import toast from 'react-hot-toast';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { createCategoryThunk, updateCategoryThunk, getCategoryThunk, deleteCategoryThunk, toggleCategoryStatusThunk, reorderCategoryThunk, toggleCategoryPremiumThunk } from '@/store/category/thunk';
+import { createCategoryThunk, updateCategoryThunk, getCategoryThunk, deleteCategoryThunk, toggleCategoryStatusThunk, toggleCategoryAndroidActiveThunk, toggleCategoryIOSActiveThunk, reorderCategoryThunk, toggleCategoryPremiumThunk } from '@/store/category/thunk';
 import { useFormik } from 'formik';
 import * as yup from 'yup';
 
@@ -30,6 +30,8 @@ const categorySchema = yup.object().shape({
   videoSquare: yup.mixed<File | string>().optional(),
   videoRectangle: yup.mixed<File | string>().optional(),
   status: yup.boolean().required('Status is required'),
+  isAndroid: yup.boolean().optional(),
+  isIos: yup.boolean().optional(),
 });
 
 const Categories: React.FC = () => {
@@ -63,7 +65,7 @@ const Categories: React.FC = () => {
   // Map API response to Category type
   useEffect(() => {
     if (categoriesData && categoriesData.length > 0) {
-      const mappedCategories: (Category & { _id?: string; isPremium?: boolean; prompt?: string })[] = categoriesData.map((item: any, index: number) => ({
+      const mappedCategories: (Category & { _id?: string; isPremium?: boolean; prompt?: string; isAndroid?: boolean; isIos?: boolean })[] = categoriesData.map((item: any, index: number) => ({
         id: parseInt(item._id?.slice(-8) || String(index + 1), 16) || index + 1, // Convert _id to number or use index
         name: item.name || '',
         prompt: item.prompt || '',
@@ -76,6 +78,8 @@ const Categories: React.FC = () => {
         videoRectangle: (item.video_rec && item.video_rec !== null) ? item.video_rec : '',
         status: item.status ?? true,
         isPremium: item.isPremium ?? false,
+        isAndroid: item.isAndroid !== undefined ? item.isAndroid : false,
+        isIos: item.isIos !== undefined ? item.isIos : false,
         order: item.order || index + 1,
         _id: item._id, // Store original _id for API calls
       }));
@@ -176,6 +180,8 @@ const Categories: React.FC = () => {
         videoSquare: '',
         videoRectangle: '',
         status: true,
+        isAndroid: false,
+        isIos: false,
       },
     });
     setSelectedFiles({
@@ -212,6 +218,8 @@ const Categories: React.FC = () => {
         videoSquare: category.videoSquare || '',
         videoRectangle: category.videoRectangle || '',
         status: category.status !== undefined ? category.status : true,
+        isAndroid: (category as any).isAndroid !== undefined ? (category as any).isAndroid : false,
+        isIos: (category as any).isIos !== undefined ? (category as any).isIos : false,
       });
 
       setSelectedFiles({
@@ -250,6 +258,8 @@ const Categories: React.FC = () => {
       country: '',
       android_appVersion: '',
       ios_appVersion: '',
+      isAndroid: false,
+      isIos: false,
     },
     validationSchema: categorySchema,
     onSubmit: async (values) => {
@@ -263,6 +273,8 @@ const Categories: React.FC = () => {
           formDataToSend.append('prompt', values.prompt.trim());
         }
         formDataToSend.append('status', values.status.toString());
+        formDataToSend.append('isAndroid', values.isAndroid.toString());
+        formDataToSend.append('isIos', values.isIos.toString());
         
         // Add new country and app version fields
         if (values.country && values.country.trim()) {
@@ -334,6 +346,8 @@ const Categories: React.FC = () => {
           formDataToSend.append('prompt', values.prompt.trim());
         }
         formDataToSend.append('status', values.status.toString());
+        formDataToSend.append('isAndroid', values.isAndroid.toString());
+        formDataToSend.append('isIos', values.isIos.toString());
         
         // Add new country and app version fields
         if (values.country && values.country.trim()) {
@@ -390,7 +404,7 @@ const Categories: React.FC = () => {
     }
   };
 
-  const handleStatusToggle = async (item: Category & { _id?: string; isPremium?: boolean }) => {
+  const handleStatusToggle = async (item: Category & { _id?: string; isPremium?: boolean; isAndroid?: boolean; isIos?: boolean }) => {
     if (!item._id) {
       toast.error('Category ID is missing');
       return;
@@ -403,7 +417,62 @@ const Categories: React.FC = () => {
     
     if (toggleCategoryStatusThunk.fulfilled.match(result)) {
       // Refresh categories list after successful status toggle
+      // Note: Backend automatically sets Android/iOS to false when status is false
       dispatch(getCategoryThunk(undefined));
+    }
+  };
+
+  const handleAndroidActiveToggle = async (item: Category & { _id?: string; isPremium?: boolean; isAndroid?: boolean; isIos?: boolean }) => {
+    if (!item._id) {
+      toast.error('Category ID is missing');
+      return;
+    }
+
+    // Can only toggle if status is true
+    if (!item.status) {
+      toast.error('Cannot enable Android activation. Category must be active first.');
+      return;
+    }
+
+    const newAndroidActive = !(item.isAndroid ?? false);
+
+    const result = await dispatch(toggleCategoryAndroidActiveThunk({ id: item._id, isAndroid: newAndroidActive }));
+    
+    if (toggleCategoryAndroidActiveThunk.fulfilled.match(result)) {
+      // Update local state directly instead of refreshing entire list
+      const index = categories.findIndex(cat => cat._id === item._id);
+      if (index !== -1) {
+        const updatedCategories = [...categories];
+        updatedCategories[index] = { ...updatedCategories[index], isAndroid: newAndroidActive, isIos: updatedCategories[index].isIos };
+        setCategories(updatedCategories);
+      }
+    }
+  };
+
+  const handleIOSActiveToggle = async (item: Category & { _id?: string; isPremium?: boolean; isAndroid?: boolean; isIos?: boolean }) => {
+    if (!item._id) {
+      toast.error('Category ID is missing');
+      return;
+    }
+
+    // Can only toggle if status is true
+    if (!item.status) {
+      toast.error('Cannot enable iOS activation. Category must be active first.');
+      return;
+    }
+
+    const newIOSActive = !(item.isIos ?? false);
+
+    const result = await dispatch(toggleCategoryIOSActiveThunk({ id: item._id, isIos: newIOSActive }));
+    
+    if (toggleCategoryIOSActiveThunk.fulfilled.match(result)) {
+      // Update local state directly instead of refreshing entire list
+      const index = categories.findIndex(cat => cat._id === item._id);
+      if (index !== -1) {
+        const updatedCategories = [...categories];
+        updatedCategories[index] = { ...updatedCategories[index], isAndroid: updatedCategories[index].isAndroid, isIos: newIOSActive };
+        setCategories(updatedCategories);
+      }
     }
   };
 
@@ -620,7 +689,7 @@ const Categories: React.FC = () => {
     {
       key: 'status',
       header: 'Status',
-      render: (item: Category & { _id?: string; isPremium?: boolean }) => (
+      render: (item: Category & { _id?: string; isPremium?: boolean; isAndroid?: boolean; isIos?: boolean }) => (
         <div className="flex justify-center">
           <Switch
             checked={item.status}
@@ -630,9 +699,35 @@ const Categories: React.FC = () => {
       ),
     },
     {
+      key: 'isAndroid',
+      header: 'Android',
+      render: (item: Category & { _id?: string; isPremium?: boolean; isAndroid?: boolean; isIos?: boolean }) => (
+        <div className="flex justify-center">
+          <Switch
+            checked={item.isAndroid ?? false}
+            disabled={!item.status}
+            onCheckedChange={() => handleAndroidActiveToggle(item)}
+          />
+        </div>
+      ),
+    },
+    {
+      key: 'isIos',
+      header: 'iOS',
+      render: (item: Category & { _id?: string; isPremium?: boolean; isAndroid?: boolean; isIos?: boolean }) => (
+        <div className="flex justify-center">
+          <Switch
+            checked={item.isIos ?? false}
+            disabled={!item.status}
+            onCheckedChange={() => handleIOSActiveToggle(item)}
+          />
+        </div>
+      ),
+    },
+    {
       key: 'isPremium',
       header: 'Premium',
-      render: (item: Category & { _id?: string; isPremium?: boolean }) => (
+      render: (item: Category & { _id?: string; isPremium?: boolean; isAndroid?: boolean; isIos?: boolean }) => (
         <div className="flex justify-center">
           <Switch
             checked={item.isPremium ?? false}
@@ -644,7 +739,7 @@ const Categories: React.FC = () => {
     {
       key: 'actions',
       header: 'Actions',
-      render: (item: Category & { _id?: string; isPremium?: boolean }) => (
+      render: (item: Category & { _id?: string; isPremium?: boolean; isAndroid?: boolean; isIos?: boolean }) => (
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
@@ -1102,7 +1197,56 @@ const Categories: React.FC = () => {
                 id="status"
                 name="status"
                 checked={formik.values.status}
-                onCheckedChange={(checked) => formik.setFieldValue('status', checked)}
+                onCheckedChange={(checked) => {
+                  formik.setFieldValue('status', checked);
+                  // CRITICAL: If status is set to false, automatically disable Android and iOS
+                  if (!checked) {
+                    formik.setFieldValue('isAndroid', false);
+                    formik.setFieldValue('isIos', false);
+                  }
+                }}
+              />
+            </div>
+
+            {/* Android Active Toggle */}
+            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border border-border">
+              <div className="space-y-0.5">
+                <Label htmlFor="isAndroid" className={`text-sm font-semibold ${!formik.values.status ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+                  Active This Category For Android
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {!formik.values.status 
+                    ? "Enable Active Status to manage platform availability"
+                    : "Enable or disable this category for Android"}
+                </p>
+              </div>
+              <Switch
+                id="isAndroid"
+                name="isAndroid"
+                checked={formik.values.isAndroid}
+                disabled={!formik.values.status}
+                onCheckedChange={(checked) => formik.setFieldValue('isAndroid', checked)}
+              />
+            </div>
+
+            {/* iOS Active Toggle */}
+            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border border-border">
+              <div className="space-y-0.5">
+                <Label htmlFor="isIos" className={`text-sm font-semibold ${!formik.values.status ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+                  Active This Category For iOS
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {!formik.values.status 
+                    ? "Enable Active Status to manage platform availability"
+                    : "Enable or disable this category for iOS"}
+                </p>
+              </div>
+              <Switch
+                id="isIos"
+                name="isIos"
+                checked={formik.values.isIos}
+                disabled={!formik.values.status}
+                onCheckedChange={(checked) => formik.setFieldValue('isIos', checked)}
               />
             </div>
 
