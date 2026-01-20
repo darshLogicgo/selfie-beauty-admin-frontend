@@ -47,5 +47,3 @@ dist-ssr
 *.tar.gz
 *.rar
 
-
-.env
