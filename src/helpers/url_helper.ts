@@ -15,6 +15,7 @@ export const CATEGORY_API = {
   REORDER: API + "/categories/reorder",
   TITLES: API + "/categories/titles",
   TOGGLE_PREMIUM: API + "/categories",
+  UPDATE_ASSET: API + "/categories", // Will append /:id/assets/premium
 };
 
 // SubCategory APIs

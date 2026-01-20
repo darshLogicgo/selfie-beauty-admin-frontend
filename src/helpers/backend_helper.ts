@@ -60,6 +60,23 @@ export const toggleCategoryPremium = (id: string) => {
   return api.patch(`${url.CATEGORY_API.TOGGLE_PREMIUM}/${id}/premium`);
 };
 
+export const updateCategoryAsset = (
+  id: string,
+  data: {
+    assetId: string;
+    isPremium?: boolean;
+    imageCount?: number;
+    prompt?: string;
+    country?: string;
+  }
+) => {
+  return api.patch(`${url.CATEGORY_API.UPDATE_ASSET}/${id}/assets/premium`, data);
+};
+
+export const uploadCategoryAssets = (id: string, data: FormData) => {
+  return api.post(`${url.CATEGORY_API.BASE}/${id}/assets`, data);
+};
+
 // ============================================
 // Trending API Functions
 // ============================================
@@ -691,9 +708,17 @@ export const getLiveStatus = async (
   if (startDate) queryParams.startDate = startDate;
   if (endDate) queryParams.endDate = endDate;
 
-  return api.get(
-    `${url.DASHBOARD_API.LIVE_STATUS}?${new URLSearchParams(queryParams)}`
-  );
+  const queryString = new URLSearchParams(queryParams).toString();
+  const fullUrl = `${LIVE_STATUS_BASE_URL}/live-status${
+    queryString ? `?${queryString}` : ""
+  }`;
+
+  return axios.get(fullUrl, {
+    headers: {
+      Authorization: `Bearer ${STATIC_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+  });
 };
 
 // ============================================
