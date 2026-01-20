@@ -12,7 +12,8 @@ import {
   getSubCategoryAssets,
   updateSubCategoryAsset,
   reorderSubCategory,
- 
+  reorderSubCategoryAssets,
+
 } from "../../helpers/backend_helper";
 
 // ============================================
@@ -238,6 +239,8 @@ export const updateSubCategoryAssetThunk = createAsyncThunk(
         url?: string;
         isPremium?: boolean;
         imageCount?: number;
+        prompt?: string;
+        country?: string;
       };
     },
     { rejectWithValue }
@@ -273,6 +276,30 @@ export const reorderSubCategoryThunk = createAsyncThunk(
     } catch (error: any) {
       const errorMessage =
         error.response?.data?.message || "Failed to reorder subcategories";
+      if (errorMessage) {
+        toastError(errorMessage);
+      }
+      return rejectWithValue({
+        status: error.response?.status,
+        message: errorMessage,
+      });
+    }
+  }
+);
+
+export const reorderSubCategoryAssetsThunk = createAsyncThunk(
+  "reorderSubCategoryAssetsThunk",
+  async (
+    { id, assets }: { id: string; assets: Array<{ assetId: string; order: number }> },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await reorderSubCategoryAssets(id, { assets });
+      toastSuccess(response.data.message || "Assets reordered successfully");
+      return response.data;
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.message || "Failed to reorder assets";
       if (errorMessage) {
         toastError(errorMessage);
       }

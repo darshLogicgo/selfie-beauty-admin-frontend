@@ -11,6 +11,7 @@ import {
   getSubCategoryAssetsThunk,
   updateSubCategoryAssetThunk,
   reorderSubCategoryThunk,
+  reorderSubCategoryAssetsThunk,
  
 } from "./thunk";
 
@@ -277,6 +278,29 @@ const slice = createSlice({
       state.error =
         (action.payload as { message?: string })?.message ||
         "Failed to reorder subcategories";
+      state.message = "";
+    });
+
+    // =================================  Reorder SubCategory Assets ==================================
+    builder.addCase(reorderSubCategoryAssetsThunk.pending, (state) => {
+      state.loading = true;
+      state.message = "";
+      state.error = null;
+    });
+    builder.addCase(reorderSubCategoryAssetsThunk.fulfilled, (state, action) => {
+      state.loading = false;
+      state.message = action.payload.message || "";
+      state.error = null;
+      // Update assets with reordered data
+      if (action.payload.data?.asset_images) {
+        state.assets = action.payload.data.asset_images;
+      }
+    });
+    builder.addCase(reorderSubCategoryAssetsThunk.rejected, (state, action) => {
+      state.loading = false;
+      state.error =
+        (action.payload as { message?: string })?.message ||
+        "Failed to reorder assets";
       state.message = "";
     });
 

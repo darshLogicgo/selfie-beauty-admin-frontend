@@ -27,9 +27,10 @@ export const SUB_CATEGORY_API = {
   ASSETS: API + "/subcategory",
   DELETE_ASSET: API + "/subcategory",
   TOGGLE_PREMIUM: API + "/subcategory",
-  GET_ASSETS: API + "/subcategory", // Will append /:id/assets
+  GET_ASSETS: API + "/subcategory", // Will append /:id/assets/admin
   UPDATE_ASSET: API + "/subcategory", // Will append /:id/assets/premium
   REORDER: API + "/subcategory/update-order",
+  REORDER_ASSETS: API + "/subcategory", // Will append /:id/assets/reorder
 };
 
 // Home Settings APIs

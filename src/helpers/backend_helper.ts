@@ -215,7 +215,7 @@ export const getSubCategoryAssets = (
   queryParams?: Record<string, any>
 ) => {
   return api.get(
-    `${url.SUB_CATEGORY_API.GET_ASSETS}/${id}/assets`,
+    `${url.SUB_CATEGORY_API.GET_ASSETS}/${id}/assets/admin`,
     queryParams
   );
 };
@@ -227,10 +227,24 @@ export const updateSubCategoryAsset = (
     url?: string;
     isPremium?: boolean;
     imageCount?: number;
+    prompt?: string;
+    country?: string;
   }
 ) => {
   return api.patch(
     `${url.SUB_CATEGORY_API.UPDATE_ASSET}/${id}/assets/premium`,
+    data
+  );
+};
+
+export const reorderSubCategoryAssets = (
+  id: string,
+  data: {
+    assets: Array<{ assetId: string; order: number }>;
+  }
+) => {
+  return api.patch(
+    `${url.SUB_CATEGORY_API.REORDER_ASSETS}/${id}/assets/reorder`,
     data
   );
 };
