@@ -694,20 +694,6 @@ export const getLiveStatus = async (
   return api.get(
     `${url.DASHBOARD_API.LIVE_STATUS}?${new URLSearchParams(queryParams)}`
   );
-  const queryString = new URLSearchParams(queryParams).toString();
-  const fullUrl = `${LIVE_STATUS_BASE_URL}/live-status${
-    queryString ? `?${queryString}` : ""
-  }`;
-
-  return axios.get(fullUrl, {
-    headers: {
-      Authorization: `Bearer ${STATIC_TOKEN}`,
-      "Content-Type": "application/json",
-    },
-  });
-  return api.get(
-    `${url.DASHBOARD_API.LIVE_STATUS}?${new URLSearchParams(queryParams)}`
-  );
 };
 
 // ============================================
