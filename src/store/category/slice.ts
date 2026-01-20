@@ -9,6 +9,7 @@ import {
   reorderCategoryThunk,
   updateCategoryThunk,
   getCategoryTitlesThunk,
+  uploadCategoryAssetsThunk,
 } from "./thunk";
 
 const initialState = {
@@ -227,6 +228,23 @@ const slice = createSlice({
     builder.addCase(getCategoryTitlesThunk.rejected, (state, action) => {
       state.titlesLoading = false;
       state.error = (action.payload as { message?: string })?.message || "Failed to fetch category titles";
+    });
+
+    // =================================  Upload Category Assets ==================================
+    builder.addCase(uploadCategoryAssetsThunk.pending, (state) => {
+      state.loading = true;
+      state.message = "";
+      state.error = null;
+    });
+    builder.addCase(uploadCategoryAssetsThunk.fulfilled, (state, action) => {
+      state.loading = false;
+      state.message = action.payload.message || "";
+      state.error = null;
+    });
+    builder.addCase(uploadCategoryAssetsThunk.rejected, (state, action) => {
+      state.loading = false;
+      state.error = (action.payload as { message?: string })?.message || "Failed to upload assets";
+      state.message = "";
     });
   },
 });

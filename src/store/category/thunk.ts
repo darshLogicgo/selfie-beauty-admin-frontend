@@ -1,6 +1,6 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { toastError, toastSuccess } from "../../config/toastConfig";
-import { getCategory, createCategory, updateCategory, deleteCategory, toggleCategoryStatus, toggleCategoryAndroidActive, toggleCategoryIOSActive, reorderCategory, getCategoryTitles, toggleCategoryPremium } from "../../helpers/backend_helper";
+import { getCategory, createCategory, updateCategory, deleteCategory, toggleCategoryStatus, toggleCategoryAndroidActive, toggleCategoryIOSActive, reorderCategory, getCategoryTitles, toggleCategoryPremium, updateCategoryAsset, uploadCategoryAssets } from "../../helpers/backend_helper";
 
 // ============================================
 // Category Thunks
@@ -193,6 +193,64 @@ export const toggleCategoryPremiumThunk = createAsyncThunk(
       return response.data;
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || "Failed to update premium status";
+      if (errorMessage) {
+        toastError(errorMessage);
+      }
+      return rejectWithValue({
+        status: error.response?.status,
+        message: errorMessage,
+      });
+    }
+  }
+);
+
+export const updateCategoryAssetThunk = createAsyncThunk(
+  "updateCategoryAssetThunk",
+  async (
+    {
+      id,
+      data,
+    }: {
+      id: string;
+      data: {
+        assetId: string;
+        isPremium?: boolean;
+        imageCount?: number;
+        prompt?: string;
+        country?: string;
+      };
+    },
+    { rejectWithValue }
+  ) => {
+    try {
+      const response = await updateCategoryAsset(id, data);
+      toastSuccess(response.data.message || "Asset updated successfully");
+      return response.data;
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || "Failed to update asset";
+      if (errorMessage) {
+        toastError(errorMessage);
+      }
+      return rejectWithValue({
+        status: error.response?.status,
+        message: errorMessage,
+      });
+    }
+  }
+);
+
+
+
+// Asset Upload Thunk
+export const uploadCategoryAssetsThunk = createAsyncThunk(
+  "uploadCategoryAssetsThunk",
+  async ({ id, data }: { id: string; data: FormData }, { rejectWithValue }) => {
+    try {
+      const response = await uploadCategoryAssets(id, data);
+      toastSuccess(response.data.message || "Assets uploaded successfully");
+      return response.data;
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || "Failed to upload assets";
       if (errorMessage) {
         toastError(errorMessage);
       }
