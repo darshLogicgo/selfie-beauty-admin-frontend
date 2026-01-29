@@ -16,6 +16,16 @@ export interface Category {
   imageCount?: number;
   isAndroid?: boolean;
   isIos?: boolean;
+  images?: AssetImage[];
+}
+
+export interface AssetImage {
+  _id: string;
+  url: string;
+  isPremium: boolean;
+  imageCount: number;
+  prompt?: string;
+  country?: string;
 }
 
 export interface SubCategory {

@@ -1,6 +1,7 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { toastError, toastSuccess } from "../../config/toastConfig";
-import { getCategory, createCategory, updateCategory, deleteCategory, toggleCategoryStatus, toggleCategoryAndroidActive, toggleCategoryIOSActive, reorderCategory, getCategoryTitles, toggleCategoryPremium, updateCategoryAsset, uploadCategoryAssets } from "../../helpers/backend_helper";
+import { getCategory, createCategory, updateCategory, deleteCategory, toggleCategoryStatus, toggleCategoryAndroidActive, toggleCategoryIOSActive, reorderCategory, getCategoryTitles, toggleCategoryPremium, updateCategoryAsset, uploadCategoryAssets, reorderCategoryAssets, deleteCategoryAsset } from "../../helpers/backend_helper";
+import { updateCacheTimestamp } from "./slice";
 
 // ============================================
 // Category Thunks
@@ -28,10 +29,40 @@ export const createCategoryThunk = createAsyncThunk(
 
 export const getCategoryThunk = createAsyncThunk(
   "getCategoryThunk",
-  async (queryParams: Record<string, any> | undefined = undefined, { rejectWithValue }) => {
+  async (queryParams: Record<string, any> | undefined = undefined, { rejectWithValue, getState, dispatch }) => {
     try {
+      // Check if we have fresh data in cache
+      const state = getState() as any;
+      const categoryState = state.Category;
+      const now = Date.now();
+      
+      // If we have data and it's not stale, return cached data
+      if (
+        categoryState.data &&
+        categoryState.data.length > 0 &&
+        !categoryState.isDataStale &&
+        categoryState.lastFetchTime &&
+        (now - categoryState.lastFetchTime) < categoryState.cacheExpiry
+      ) {
+        console.log('Using cached categories data');
+        return {
+          data: categoryState.data,
+          pagination: categoryState.paginationData,
+          fromCache: true
+        };
+      }
+      
+      // Otherwise, fetch fresh data
+      console.log('Fetching fresh categories data');
       const response = await getCategory(queryParams);
-      return response.data;
+      
+      // Update cache timestamp
+      dispatch(updateCacheTimestamp());
+      
+      return {
+        ...response.data,
+        fromCache: false
+      };
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || "Failed to fetch categories";
       if (errorMessage) {
@@ -251,6 +282,48 @@ export const uploadCategoryAssetsThunk = createAsyncThunk(
       return response.data;
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || "Failed to upload assets";
+      if (errorMessage) {
+        toastError(errorMessage);
+      }
+      return rejectWithValue({
+        status: error.response?.status,
+        message: errorMessage,
+      });
+    }
+  }
+);
+
+// Asset Reorder Thunk
+export const reorderCategoryAssetsThunk = createAsyncThunk(
+  "reorderCategoryAssetsThunk",
+  async ({ id, assets }: { id: string; assets: Array<{ assetId: string; order: number }> }, { rejectWithValue }) => {
+    try {
+      const response = await reorderCategoryAssets(id, { assets });
+      toastSuccess(response.data.message || "Assets reordered successfully");
+      return response.data;
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || "Failed to reorder assets";
+      if (errorMessage) {
+        toastError(errorMessage);
+      }
+      return rejectWithValue({
+        status: error.response?.status,
+        message: errorMessage,
+      });
+    }
+  }
+);
+
+// Asset Delete Thunk
+export const deleteCategoryAssetThunk = createAsyncThunk(
+  "deleteCategoryAssetThunk",
+  async ({ id, imageUrl }: { id: string; imageUrl: string }, { rejectWithValue }) => {
+    try {
+      const response = await deleteCategoryAsset(id, imageUrl);
+      toastSuccess(response.data.message || "Asset deleted successfully");
+      return response.data;
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || "Failed to delete asset";
       if (errorMessage) {
         toastError(errorMessage);
       }

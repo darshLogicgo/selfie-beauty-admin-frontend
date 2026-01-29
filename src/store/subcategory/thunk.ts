@@ -15,6 +15,7 @@ import {
   reorderSubCategoryAssets,
 
 } from "../../helpers/backend_helper";
+import { updateCacheTimestamp } from "./slice";
 
 // ============================================
 // SubCategory Thunks
@@ -24,11 +25,41 @@ export const getSubCategoryThunk = createAsyncThunk(
   "getSubCategoryThunk",
   async (
     queryParams: Record<string, any> | undefined = undefined,
-    { rejectWithValue }
+    { rejectWithValue, getState, dispatch }
   ) => {
     try {
+      // Check if we have fresh data in cache
+      const state = getState() as any;
+      const subCategoryState = state.SubCategory;
+      const now = Date.now();
+      
+      // If we have data and it's not stale, return cached data
+      if (
+        subCategoryState.data &&
+        subCategoryState.data.length > 0 &&
+        !subCategoryState.isDataStale &&
+        subCategoryState.lastFetchTime &&
+        (now - subCategoryState.lastFetchTime) < subCategoryState.cacheExpiry
+      ) {
+        console.log('Using cached subcategories data');
+        return {
+          data: subCategoryState.data,
+          pagination: subCategoryState.paginationData,
+          fromCache: true
+        };
+      }
+      
+      // Otherwise, fetch fresh data
+      console.log('Fetching fresh subcategories data');
       const response = await getSubCategory(queryParams);
-      return response.data;
+      
+      // Update cache timestamp
+      dispatch(updateCacheTimestamp());
+      
+      return {
+        ...response.data,
+        fromCache: false
+      };
     } catch (error: any) {
       const errorMessage =
         error.response?.data?.message || "Failed to fetch subcategories";

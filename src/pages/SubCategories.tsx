@@ -37,8 +37,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import CountrySelect from "@/components/ui/CountrySelect";
-import DraggableTable from "@/components/ui/DraggableTable";
+import CountrySelect from '@/components/ui/CountrySelect';
+import DraggableTable from '@/components/ui/DraggableTable';
+import VirtualizedAssetGrid from '@/components/ui/VirtualizedAssetGridOptimized';
 import {
   DndContext,
   closestCenter,
@@ -58,7 +59,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { SubCategory } from "@/data/mockData";
+import { SubCategory, AssetImage } from "@/data/mockData";
 import toast from "react-hot-toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
@@ -83,162 +84,32 @@ import {
   getCountryShortName,
 } from "@/constants/countries";
 
-// Debounce utility function
+// Enhanced debounce utility for performance optimization
 const debounce = <T extends (...args: any[]) => any>(
   func: T,
-  delay: number
+  delay: number,
+  options: { leading?: boolean; trailing?: boolean } = { leading: false, trailing: true }
 ): ((...args: Parameters<T>) => void) => {
   let timeoutId: NodeJS.Timeout;
+  let lastCallTime = 0;
+  
   return (...args: Parameters<T>) => {
+    const now = Date.now();
+    const shouldCallLeading = options.leading && now - lastCallTime >= delay;
+    
     clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => func(...args), delay);
+    
+    if (shouldCallLeading) {
+      func(...args);
+      lastCallTime = now;
+    } else if (options.trailing) {
+      timeoutId = setTimeout(() => {
+        func(...args);
+        lastCallTime = Date.now();
+      }, delay);
+    }
   };
 };
-
-// Virtual Scrolling Component for Asset Grid
-const VirtualAssetGrid = memo(({
-  assets,
-  selectedAssets,
-  onAssetSelect,
-  onDeleteImage,
-  onViewImage,
-  onPremiumToggle,
-  onImageCountChange,
-  onPromptChange,
-  onCountryChange,
-  editingAsset,
-  editingAssetPrompt,
-  setEditingAsset,
-  setEditingAssetPrompt,
-  assetLoadingStates,
-  containerHeight = 384, // 24rem = max-h-96
-  itemHeight = 320, // Approximate height of each asset card
-  columns = 3
-}: {
-  assets: AssetImage[];
-  selectedAssets: string[];
-  onAssetSelect: (assetId: string) => void;
-  onDeleteImage: (asset: AssetImage) => void;
-  onViewImage: (asset: AssetImage) => void;
-  onPremiumToggle: (asset: AssetImage) => void;
-  onImageCountChange: (asset: AssetImage, newCount: number) => void;
-  onPromptChange: (asset: AssetImage, newPrompt: string) => void;
-  onCountryChange: (asset: AssetImage, newCountry: string) => void;
-  editingAsset: { assetId: string; imageCount: number } | null;
-  editingAssetPrompt: { assetId: string; prompt: string } | null;
-  setEditingAsset: (asset: { assetId: string; imageCount: number } | null) => void;
-  setEditingAssetPrompt: (asset: { assetId: string; prompt: string } | null) => void;
-  assetLoadingStates: Set<string>;
-  containerHeight?: number;
-  itemHeight?: number;
-  columns?: number;
-}) => {
-  const [scrollTop, setScrollTop] = useState(0);
-  const containerRef = useRef<HTMLDivElement>(null);
-  
-  const itemsPerRow = columns;
-  const rowHeight = itemHeight;
-  const totalRows = Math.ceil(assets.length / itemsPerRow);
-  const totalHeight = totalRows * rowHeight;
-  
-  const visibleStart = Math.floor(scrollTop / rowHeight);
-  const visibleEnd = Math.min(
-    totalRows - 1,
-    Math.floor((scrollTop + containerHeight) / rowHeight) + 1
-  );
-  
-  const visibleItems = useMemo(() => {
-    const items: AssetImage[] = [];
-    for (let row = visibleStart; row <= visibleEnd; row++) {
-      for (let col = 0; col < itemsPerRow; col++) {
-        const index = row * itemsPerRow + col;
-        if (index < assets.length) {
-          items.push(assets[index]);
-        }
-      }
-    }
-    return items;
-  }, [assets, visibleStart, visibleEnd, itemsPerRow]);
-  
-  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    setScrollTop(e.currentTarget.scrollTop);
-  }, []);
-  
-  // For small datasets, render normally without virtualization
-  if (assets.length <= 30) {
-    return (
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-2 border rounded-lg bg-muted/30 max-h-96 overflow-y-auto">
-        {assets.map((asset: AssetImage) => (
-          <AssetCard
-            key={asset._id}
-            asset={asset}
-            selectedAssets={selectedAssets}
-            onAssetSelect={onAssetSelect}
-            onDeleteImage={onDeleteImage}
-            onViewImage={onViewImage}
-            onPremiumToggle={onPremiumToggle}
-            onImageCountChange={onImageCountChange}
-            onPromptChange={onPromptChange}
-            onCountryChange={onCountryChange}
-            editingAsset={editingAsset}
-            editingAssetPrompt={editingAssetPrompt}
-            setEditingAsset={setEditingAsset}
-            setEditingAssetPrompt={setEditingAssetPrompt}
-            loading={assetLoadingStates.has(asset._id)}
-            assets={assets}
-          />
-        ))}
-      </div>
-    );
-  }
-  
-  return (
-    <div className="border rounded-lg bg-muted/30">
-      <div
-        ref={containerRef}
-        className="overflow-y-auto"
-        style={{ height: containerHeight }}
-        onScroll={handleScroll}
-      >
-        <div style={{ height: totalHeight, position: 'relative' }}>
-          <div
-            style={{
-              position: 'absolute',
-              top: visibleStart * rowHeight,
-              left: 0,
-              right: 0,
-            }}
-          >
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-2">
-              {visibleItems.map((asset: AssetImage) => (
-                <AssetCard
-                  key={asset._id}
-                  asset={asset}
-                  selectedAssets={selectedAssets}
-                  onAssetSelect={onAssetSelect}
-                  onDeleteImage={onDeleteImage}
-                  onViewImage={onViewImage}
-                  onPremiumToggle={onPremiumToggle}
-                  onImageCountChange={onImageCountChange}
-                  onPromptChange={onPromptChange}
-                  onCountryChange={onCountryChange}
-                  editingAsset={editingAsset}
-                  editingAssetPrompt={editingAssetPrompt}
-                  setEditingAsset={setEditingAsset}
-                  setEditingAssetPrompt={setEditingAssetPrompt}
-                  loading={assetLoadingStates.has(asset._id)}
-                  assets={assets}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-});
-
-VirtualAssetGrid.displayName = 'VirtualAssetGrid';
 
 // Draggable Asset Grid Component
 const DraggableAssetGrid = memo(({
@@ -1089,15 +960,6 @@ const subCategorySchema = yup.object().shape({
 });
 
 // Asset type based on API response
-interface AssetImage {
-  _id: string;
-  url: string;
-  isPremium: boolean;
-  imageCount: number;
-  prompt?: string;
-  country?: string;
-}
-
 
 // Map API response to component format
 const mapApiToComponent = (apiData: ApiSubCategory[]): SubCategoryWithId[] => {
@@ -1142,21 +1004,31 @@ const SubCategories: React.FC = () => {
   >([]);
   const [originalOrder, setOriginalOrder] = useState<string[]>([]);
 
-  // Map API response to component format and update local state
-  useEffect(() => {
-    if (apiSubCategories && apiSubCategories.length > 0) {
-      const mapped = mapApiToComponent(apiSubCategories);
-      setLocalSubCategories(mapped);
-      // Store original order of _ids
-      const originalIds = mapped
-        .map((cat) => cat._id || "")
-        .filter((id) => id !== "");
-      setOriginalOrder(originalIds);
-    } else if (apiSubCategories && apiSubCategories.length === 0) {
+  // Memoized subcategories mapping to prevent unnecessary recalculations
+  const memoizedSubCategories = useMemo(() => {
+    if (!apiSubCategories || apiSubCategories.length === 0) {
       setLocalSubCategories([]);
       setOriginalOrder([]);
+      return [];
     }
+    
+    const startTime = performance.now();
+    const mapped = mapApiToComponent(apiSubCategories);
+    
+    // Store original order of _ids
+    const originalIds = mapped
+      .map((cat) => cat._id || "")
+      .filter((id) => id !== "");
+    setOriginalOrder(originalIds);
+    
+    console.log(`SubCategories mapping took: ${performance.now() - startTime}ms for ${apiSubCategories.length} items`);
+    return mapped;
   }, [apiSubCategories]);
+
+  // Map API response to component format and update local state
+  useEffect(() => {
+    setLocalSubCategories(memoizedSubCategories);
+  }, [memoizedSubCategories]);
 
   const subCategories = localSubCategories;
 
@@ -1202,13 +1074,20 @@ const SubCategories: React.FC = () => {
     };
   }, []);
 
-  // Fetch subcategories and category titles on component mount
+  // Fetch subcategories and category titles on component mount with performance optimization
   useEffect(() => {
-    dispatch(getSubCategoryThunk(undefined));
-    dispatch(getCategoryTitlesThunk());
+    const startTime = performance.now();
+    
+    // Parallel API calls for better performance
+    Promise.all([
+      dispatch(getSubCategoryThunk(undefined)),
+      dispatch(getCategoryTitlesThunk())
+    ]).finally(() => {
+      console.log(`SubCategories API calls took: ${performance.now() - startTime}ms`);
+    });
   }, [dispatch]);
 
-  const isUsableMediaSrc = (src: unknown) => {
+  const isUsableMediaSrc = useCallback((src: unknown) => {
     if (typeof src !== "string") return false;
     const s = src.trim();
     if (!s || s === "null" || s === "undefined") return false;
@@ -1219,7 +1098,7 @@ const SubCategories: React.FC = () => {
       s.startsWith("data:") ||
       s.startsWith("/")
     );
-  };
+  }, []);
 
   const [selectedFiles, setSelectedFiles] = useState({
     img_sqr: null as File | null,
@@ -1384,14 +1263,17 @@ const SubCategories: React.FC = () => {
     setCurrentAssetPage(1);
     setSelectedAssets([]); // Clear selection when opening form
     setIsImageFormOpen(true);
-    // Fetch assets for this subcategory
+    
+    // Fetch assets for this subcategory with performance optimization
     if (subCategory._id) {
+      const startTime = performance.now();
       await dispatch(
         getSubCategoryAssetsThunk({
           id: subCategory._id,
           queryParams: { page: 1, limit: 10 },
         })
       );
+      console.log(`SubCategory assets loading took: ${performance.now() - startTime}ms`);
     }
   };
 
@@ -3504,7 +3386,7 @@ const SubCategories: React.FC = () => {
                   <p>Loading assets...</p>
                 </div>
               ) : enhancedAssets.length > 0 ? (
-                <DraggableAssetGrid
+                <VirtualizedAssetGrid
                   assets={enhancedAssets}
                   selectedAssets={selectedAssets}
                   onAssetSelect={handleAssetSelect}
@@ -3523,9 +3405,9 @@ const SubCategories: React.FC = () => {
                   editingAssetPrompt={editingAssetPrompt}
                   setEditingAsset={setEditingAsset}
                   setEditingAssetPrompt={setEditingAssetPrompt}
-                  assetLoadingStates={assetLoadingStates}
-                  onReorder={handleAssetReorder}
+                  loading={assetLoadingStates.has(editingAsset?.assetId || '')}
                   containerHeight={600}
+                  itemHeight={320}
                   columns={3}
                 />
               ) : (

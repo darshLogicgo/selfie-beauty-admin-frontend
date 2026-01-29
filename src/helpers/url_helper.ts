@@ -16,6 +16,7 @@ export const CATEGORY_API = {
   TITLES: API + "/categories/titles",
   TOGGLE_PREMIUM: API + "/categories",
   UPDATE_ASSET: API + "/categories", // Will append /:id/assets/premium
+  DELETE_ASSET: API + "/categories", // Will append /:id/assets/delete
 };
 
 // SubCategory APIs
@@ -105,6 +106,7 @@ export const HOME_API = {
   REORDER_SECTION6: API + "/home/section6/reorder",
   REORDER_SECTION7: API + "/home/section7/reorder",
   REORDER_SECTION8: API + "/home/section8/reorder",
+  REORDER_CUSTOM_SECTION: API + "/home/custom-section/reorder",
   SETTINGS: API + "/home/settings",
 };
 

@@ -77,6 +77,22 @@ export const uploadCategoryAssets = (id: string, data: FormData) => {
   return api.post(`${url.CATEGORY_API.BASE}/${id}/assets`, data);
 };
 
+export const reorderCategoryAssets = (id: string, data: {
+  assets: Array<{ assetId: string; order: number }>;
+}) => {
+  return api.patch(`${url.CATEGORY_API.BASE}/${id}/assets/reorder`, data);
+};
+
+export const deleteCategoryAsset = (id: string, assetIdOrUrl: string) => {
+  // Backend accepts either assetId or url in body
+  // If it's a valid ObjectId format, send as assetId, otherwise as url
+  const isObjectId = /^[0-9a-fA-F]{24}$/.test(assetIdOrUrl);
+  return api.remove(
+    `${url.CATEGORY_API.DELETE_ASSET}/${id}/assets/delete`,
+    isObjectId ? { assetId: assetIdOrUrl } : { url: assetIdOrUrl }
+  );
+};
+
 // ============================================
 // Trending API Functions
 // ============================================
@@ -333,9 +349,16 @@ export const reorderHomeSection8 = (data: {
   return api.patch(url.HOME_API.REORDER_SECTION8, data);
 };
 
+export const reorderHomeSectionCustom = (data: {
+  categories: Array<{ _id: string; customSectionOrder: number }>;
+}) => {
+  return api.patch(url.HOME_API.REORDER_CUSTOM_SECTION, data);
+};
+
 export const updateHomeSettings = (data: {
   section6Title?: string;
   section7Title?: string;
+  customSectionTitle?: string;
 }) => {
   return api.patch(url.HOME_API.SETTINGS, data);
 };

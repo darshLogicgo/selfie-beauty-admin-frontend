@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,26 +18,74 @@ import {
   reorderHomeSection6Thunk,
   reorderHomeSection7Thunk,
   reorderHomeSection8Thunk,
+  reorderHomeCustomSectionThunk,
   updateHomeSettingsThunk,
 } from "@/store/homeSettings/thunk";
 import { updateSectionItem } from "@/store/homeSettings/slice";
+
+// Scroll position preservation hook
+const useScrollPreservation = () => {
+  const scrollPosition = useRef<number>(0);
+
+  const saveScrollPosition = useCallback(() => {
+    scrollPosition.current = window.pageYOffset || document.documentElement.scrollTop;
+  }, []);
+
+  const restoreScrollPosition = useCallback(() => {
+    window.scrollTo(0, scrollPosition.current);
+  }, []);
+
+  const getScrollPosition = useCallback(() => scrollPosition.current, []);
+
+  return { saveScrollPosition, restoreScrollPosition, getScrollPosition };
+};
 
 const HomeSettings: React.FC = () => {
   const dispatch = useAppDispatch();
   const { loading, data, error, updatingIds } = useAppSelector(
     (state) => state.HomeSettings
   );
+  
+  // Scroll position preservation
+  const { saveScrollPosition, restoreScrollPosition, getScrollPosition } = useScrollPreservation();
 
   // Local state for title inputs
   const [section6Title, setSection6Title] = useState("");
   const [section7Title, setSection7Title] = useState("");
+  const [customSectionTitle, setCustomSectionTitle] = useState("");
   const [savingSection6, setSavingSection6] = useState(false);
   const [savingSection7, setSavingSection7] = useState(false);
+  const [savingCustomSection, setSavingCustomSection] = useState(false);
 
   // Fetch home data on component mount
   useEffect(() => {
     dispatch(getHomeDataThunk());
   }, [dispatch]);
+
+  // Restore scroll position after data updates
+  useEffect(() => {
+    if (data && !loading) {
+      // Multiple attempts to restore scroll position for better reliability
+      const restoreScroll = () => {
+        try {
+          const currentPosition = window.pageYOffset || document.documentElement.scrollTop;
+          const savedPosition = getScrollPosition();
+          // Only restore if we're at the top (meaning a refresh happened)
+          if (currentPosition === 0 && savedPosition > 0) {
+            window.scrollTo(0, savedPosition);
+          }
+        } catch (error) {
+          console.warn('Failed to restore scroll position:', error);
+        }
+      };
+
+      // Try multiple times with delays for better reliability
+      restoreScroll();
+      setTimeout(restoreScroll, 50);
+      setTimeout(restoreScroll, 150);
+      setTimeout(restoreScroll, 300);
+    }
+  }, [data, loading, getScrollPosition]);
 
   // Update local state when data changes
   useEffect(() => {
@@ -47,7 +95,10 @@ const HomeSettings: React.FC = () => {
     if (data.section7?.title !== undefined) {
       setSection7Title(data.section7.title || "");
     }
-  }, [data.section6?.title, data.section7?.title]);
+    if (data.customSection?.title !== undefined) {
+      setCustomSectionTitle(data.customSection.title || "");
+    }
+  }, [data.section6?.title, data.section7?.title, data.customSection?.title]);
 
   // Check if section 6 title has changed
   const hasSection6Changes = section6Title !== (data.section6?.title || "");
@@ -55,14 +106,18 @@ const HomeSettings: React.FC = () => {
   // Check if section 7 title has changed
   const hasSection7Changes = section7Title !== (data.section7?.title || "");
 
+  // Check if custom section title has changed
+  const hasCustomSectionChanges = customSectionTitle !== (data.customSection?.title || "");
+
   const handleSaveSection6Title = async () => {
     if (!hasSection6Changes) return;
 
+    saveScrollPosition(); // Save current scroll position
     setSavingSection6(true);
     try {
       await dispatch(updateHomeSettingsThunk({ section6Title })).unwrap();
-      // Refresh data after successful update
-      dispatch(getHomeDataThunk());
+      // Don't refresh data - the thunk should update the local state
+      toast.success("Section 6 title updated successfully");
     } catch (error) {
       // Error is already handled by the thunk
     } finally {
@@ -73,11 +128,12 @@ const HomeSettings: React.FC = () => {
   const handleSaveSection7Title = async () => {
     if (!hasSection7Changes) return;
 
+    saveScrollPosition(); // Save current scroll position
     setSavingSection7(true);
     try {
       await dispatch(updateHomeSettingsThunk({ section7Title })).unwrap();
-      // Refresh data after successful update
-      dispatch(getHomeDataThunk());
+      // Don't refresh data - the thunk should update the local state
+      toast.success("Section 7 title updated successfully");
     } catch (error) {
       // Error is already handled by the thunk
     } finally {
@@ -85,11 +141,27 @@ const HomeSettings: React.FC = () => {
     }
   };
 
+  const handleSaveCustomSectionTitle = async () => {
+    if (!hasCustomSectionChanges) return;
+
+    saveScrollPosition(); // Save current scroll position
+    setSavingCustomSection(true);
+    try {
+      await dispatch(updateHomeSettingsThunk({ customSectionTitle })).unwrap();
+      // Don't refresh data - the thunk should update the local state
+      toast.success("Custom section title updated successfully");
+    } catch (error) {
+      // Error is already handled by the thunk
+    } finally {
+      setSavingCustomSection(false);
+    }
+  };
+
   const handleSave = () => {
     toast.success("Settings saved! Home page configuration has been updated.");
   };
 
-  // Get all unique categories for section1 and section2 (combine all from section1, section2, section6, section7)
+  // Get all unique categories for section1 and section2 (combine all from section1, section2, custom section, section6, section7)
   const allCategories = useMemo(() => {
     const categoryMap = new Map();
 
@@ -102,6 +174,13 @@ const HomeSettings: React.FC = () => {
 
     // Add from section2
     data.section2?.forEach((item: any) => {
+      if (!categoryMap.has(item._id)) {
+        categoryMap.set(item._id, item);
+      }
+    });
+
+    // Add from custom section
+    data.customSection?.categories?.forEach((item: any) => {
       if (!categoryMap.has(item._id)) {
         categoryMap.set(item._id, item);
       }
@@ -179,6 +258,16 @@ const HomeSettings: React.FC = () => {
     .filter((item: any) => item.isSection2 === true)
     .map((item: any) => item._id);
 
+  // Custom Section - Use allCategories to allow admin to select from ALL available categories
+  const customSectionItems = allCategories.map((item: any) => ({
+    id: item._id,
+    name: item.name || "",
+    image: item.img_sqr || item.img_rec || item.video_sqr || "",
+  }));
+  const customSectionSelection = (data.customSection?.categories || [])
+    .filter((item: any) => item.isCustomSection === true)
+    .map((item: any) => item._id);
+
   // Section 3 - Use direct section3 data from API to maintain order
   const section3Items = (data.section3 || []).map((item: any) => ({
     id: item._id,
@@ -243,6 +332,7 @@ const HomeSettings: React.FC = () => {
 
   // Handle selection changes for each section
   const handleSection1Change = async (ids: (number | string)[]) => {
+    saveScrollPosition(); // Save current scroll position
     const changedItems: Array<{ _id: string; isSection1: boolean }> = [];
 
     allCategories.forEach((item: any) => {
@@ -268,8 +358,8 @@ const HomeSettings: React.FC = () => {
         await dispatch(
           toggleHomeCategorySectionThunk({ categories: changedItems })
         ).unwrap();
-        // Refresh data after successful update
-        dispatch(getHomeDataThunk());
+        // Don't refresh data - optimistic updates should handle UI changes
+        toast.success("Section 1 updated successfully");
       } catch (error) {
         // Error is already handled by the thunk
       }
@@ -277,6 +367,7 @@ const HomeSettings: React.FC = () => {
   };
 
   const handleSection2Change = async (ids: (number | string)[]) => {
+    saveScrollPosition(); // Save current scroll position
     const changedItems: Array<{ _id: string; isSection2: boolean }> = [];
 
     allCategories.forEach((item: any) => {
@@ -302,8 +393,43 @@ const HomeSettings: React.FC = () => {
         await dispatch(
           toggleHomeCategorySectionThunk({ categories: changedItems })
         ).unwrap();
-        // Refresh data after successful update
-        // dispatch(getHomeDataThunk());
+        // Don't refresh data - optimistic updates should handle UI changes
+        toast.success("Section 2 updated successfully");
+      } catch (error) {
+        // Error is already handled by the thunk
+      }
+    }
+  };
+
+  const handleCustomSectionChange = async (ids: (number | string)[]) => {
+    saveScrollPosition(); // Save current scroll position
+    const changedItems: Array<{ _id: string; isCustomSection: boolean }> = [];
+
+    allCategories.forEach((item: any) => {
+      const isSelected = ids.includes(item._id);
+      if (item.isCustomSection !== isSelected) {
+        dispatch(
+          updateSectionItem({
+            id: item._id,
+            section: "custom",
+            value: isSelected,
+          })
+        );
+        changedItems.push({
+          _id: item._id,
+          isCustomSection: isSelected,
+        });
+      }
+    });
+
+    // Call API for changed items
+    if (changedItems.length > 0) {
+      try {
+        await dispatch(
+          toggleHomeCategorySectionThunk({ categories: changedItems })
+        ).unwrap();
+        // Don't refresh data - optimistic updates should handle UI changes
+        toast.success("Custom section updated successfully");
       } catch (error) {
         // Error is already handled by the thunk
       }
@@ -311,6 +437,7 @@ const HomeSettings: React.FC = () => {
   };
 
   const handleSection3Change = async (ids: (number | string)[]) => {
+    saveScrollPosition(); // Save current scroll position
     const changedSubcategoriesMap = new Map<
       string,
       {
@@ -348,8 +475,8 @@ const HomeSettings: React.FC = () => {
             subcategories: Array.from(changedSubcategoriesMap.values()),
           })
         ).unwrap();
-        // Refresh data after successful update
-        // dispatch(getHomeDataThunk());
+        // Don't refresh data - optimistic updates should handle UI changes
+        toast.success("Section 3 updated successfully");
       } catch (error) {
         // Error is already handled by the thunk
       }
@@ -357,6 +484,7 @@ const HomeSettings: React.FC = () => {
   };
 
   const handleSection4Change = async (ids: (number | string)[]) => {
+    saveScrollPosition(); // Save current scroll position
     const changedSubcategoriesMap = new Map<
       string,
       {
@@ -395,8 +523,8 @@ const HomeSettings: React.FC = () => {
             subcategories: Array.from(changedSubcategoriesMap.values()),
           })
         ).unwrap();
-        // Refresh data after successful update
-        // dispatch(getHomeDataThunk());
+        // Don't refresh data - optimistic updates should handle UI changes
+        toast.success("Section 4 updated successfully");
       } catch (error) {
         // Error is already handled by the thunk
       }
@@ -404,6 +532,7 @@ const HomeSettings: React.FC = () => {
   };
 
   const handleSection5Change = async (ids: (number | string)[]) => {
+    saveScrollPosition(); // Save current scroll position
     const changedSubcategoriesMap = new Map<
       string,
       {
@@ -442,8 +571,8 @@ const HomeSettings: React.FC = () => {
             subcategories: Array.from(changedSubcategoriesMap.values()),
           })
         ).unwrap();
-        // Refresh data after successful update
-        // dispatch(getHomeDataThunk());
+        // Don't refresh data - optimistic updates should handle UI changes
+        toast.success("Section 5 updated successfully");
       } catch (error) {
         // Error is already handled by the thunk
       }
@@ -451,6 +580,7 @@ const HomeSettings: React.FC = () => {
   };
 
   const handleSection6Change = async (ids: (number | string)[]) => {
+    saveScrollPosition(); // Save current scroll position
     const changedItems: Array<{ _id: string; isSection6: boolean }> = [];
 
     allCategories.forEach((item: any) => {
@@ -476,8 +606,8 @@ const HomeSettings: React.FC = () => {
         await dispatch(
           toggleHomeCategorySectionThunk({ categories: changedItems })
         ).unwrap();
-        // Refresh data after successful update
-        dispatch(getHomeDataThunk());
+        // Don't refresh data - optimistic updates should handle UI changes
+        toast.success("Section 6 updated successfully");
       } catch (error) {
         // Error is already handled by the thunk
       }
@@ -485,6 +615,7 @@ const HomeSettings: React.FC = () => {
   };
 
   const handleSection7Change = async (ids: (number | string)[]) => {
+    saveScrollPosition(); // Save current scroll position
     const changedItems: Array<{ _id: string; isSection7: boolean }> = [];
 
     allCategories.forEach((item: any) => {
@@ -510,8 +641,8 @@ const HomeSettings: React.FC = () => {
         await dispatch(
           toggleHomeCategorySectionThunk({ categories: changedItems })
         ).unwrap();
-        // Refresh data after successful update
-        dispatch(getHomeDataThunk());
+        // Don't refresh data - optimistic updates should handle UI changes
+        toast.success("Section 7 updated successfully");
       } catch (error) {
         // Error is already handled by the thunk
       }
@@ -519,6 +650,7 @@ const HomeSettings: React.FC = () => {
   };
 
   const handleSection8Change = async (ids: (number | string)[]) => {
+    saveScrollPosition(); // Save current scroll position
     const changedSubcategoriesMap = new Map<
       string,
       {
@@ -557,8 +689,8 @@ const HomeSettings: React.FC = () => {
             subcategories: Array.from(changedSubcategoriesMap.values()),
           })
         ).unwrap();
-        // Refresh data after successful update
-        dispatch(getHomeDataThunk());
+        // Don't refresh data - optimistic updates should handle UI changes
+        toast.success("Section 8 updated successfully");
       } catch (error) {
         // Error is already handled by the thunk
       }
@@ -569,6 +701,7 @@ const HomeSettings: React.FC = () => {
   const handleSection1Reorder = async (
     reorderedItems: Array<{ id: number | string; name: string; image: string }>
   ) => {
+    saveScrollPosition(); // Save current scroll position
     // Map reordered items to backend format with section1Order
     const categories = reorderedItems.map((item, index) => ({
       _id: String(item.id),
@@ -577,8 +710,8 @@ const HomeSettings: React.FC = () => {
 
     try {
       await dispatch(reorderHomeSection1Thunk({ categories })).unwrap();
-      // Refresh data after successful reorder
-      dispatch(getHomeDataThunk());
+      // Don't refresh data - optimistic updates should handle UI changes
+      toast.success("Section 1 reordered successfully");
     } catch (error) {
       // Error is already handled by the thunk
     }
@@ -587,6 +720,7 @@ const HomeSettings: React.FC = () => {
   const handleSection2Reorder = async (
     reorderedItems: Array<{ id: number | string; name: string; image: string }>
   ) => {
+    saveScrollPosition(); // Save current scroll position
     // Map reordered items to backend format with section2Order
     const categories = reorderedItems.map((item, index) => ({
       _id: String(item.id),
@@ -595,8 +729,27 @@ const HomeSettings: React.FC = () => {
 
     try {
       await dispatch(reorderHomeSection2Thunk({ categories })).unwrap();
-      // Refresh data after successful reorder
-      // dispatch(getHomeDataThunk());
+      // Don't refresh data - optimistic updates should handle UI changes
+      toast.success("Section 2 reordered successfully");
+    } catch (error) {
+      // Error is already handled by the thunk
+    }
+  };
+
+  const handleCustomSectionReorder = async (
+    reorderedItems: Array<{ id: number | string; name: string; image: string }>
+  ) => {
+    saveScrollPosition(); // Save current scroll position
+    // Map reordered items to backend format with customSectionOrder
+    const categories = reorderedItems.map((item, index) => ({
+      _id: String(item.id),
+      customSectionOrder: index + 1,
+    }));
+
+    try {
+      await dispatch(reorderHomeCustomSectionThunk({ categories })).unwrap();
+      // Don't refresh data - optimistic updates should handle UI changes
+      toast.success("Custom section reordered successfully");
     } catch (error) {
       // Error is already handled by the thunk
     }
@@ -605,6 +758,7 @@ const HomeSettings: React.FC = () => {
   const handleSection3Reorder = async (
     reorderedItems: Array<{ id: number | string; name: string; image: string }>
   ) => {
+    saveScrollPosition(); // Save current scroll position
     // Map reordered items to backend format with section3Order
     const subcategories = reorderedItems.map((item, index) => ({
       _id: String(item.id),
@@ -613,8 +767,8 @@ const HomeSettings: React.FC = () => {
 
     try {
       await dispatch(reorderHomeSection3Thunk({ subcategories })).unwrap();
-      // Refresh data after successful reorder
-      dispatch(getHomeDataThunk());
+      // Don't refresh data - optimistic updates should handle UI changes
+      toast.success("Section 3 reordered successfully");
     } catch (error) {
       // Error is already handled by the thunk
     }
@@ -623,6 +777,7 @@ const HomeSettings: React.FC = () => {
   const handleSection4Reorder = async (
     reorderedItems: Array<{ id: number | string; name: string; image: string }>
   ) => {
+    saveScrollPosition(); // Save current scroll position
     // Map reordered items to backend format with section4Order
     const subcategories = reorderedItems.map((item, index) => ({
       _id: String(item.id),
@@ -631,8 +786,8 @@ const HomeSettings: React.FC = () => {
 
     try {
       await dispatch(reorderHomeSection4Thunk({ subcategories })).unwrap();
-      // Refresh data after successful reorder
-      dispatch(getHomeDataThunk());
+      // Don't refresh data - optimistic updates should handle UI changes
+      toast.success("Section 4 reordered successfully");
     } catch (error) {
       // Error is already handled by the thunk
     }
@@ -641,6 +796,7 @@ const HomeSettings: React.FC = () => {
   const handleSection5Reorder = async (
     reorderedItems: Array<{ id: number | string; name: string; image: string }>
   ) => {
+    saveScrollPosition(); // Save current scroll position
     // Map reordered items to backend format with section5Order
     const subcategories = reorderedItems.map((item, index) => ({
       _id: String(item.id),
@@ -649,8 +805,8 @@ const HomeSettings: React.FC = () => {
 
     try {
       await dispatch(reorderHomeSection5Thunk({ subcategories })).unwrap();
-      // Refresh data after successful reorder
-      dispatch(getHomeDataThunk());
+      // Don't refresh data - optimistic updates should handle UI changes
+      toast.success("Section 5 reordered successfully");
     } catch (error) {
       // Error is already handled by the thunk
     }
@@ -659,6 +815,7 @@ const HomeSettings: React.FC = () => {
   const handleSection6Reorder = async (
     reorderedItems: Array<{ id: number | string; name: string; image: string }>
   ) => {
+    saveScrollPosition(); // Save current scroll position
     // Map reordered items to backend format with section6Order
     const categories = reorderedItems.map((item, index) => ({
       _id: String(item.id),
@@ -667,8 +824,8 @@ const HomeSettings: React.FC = () => {
 
     try {
       await dispatch(reorderHomeSection6Thunk({ categories })).unwrap();
-      // Refresh data after successful reorder
-      dispatch(getHomeDataThunk());
+      // Don't refresh data - optimistic updates should handle UI changes
+      toast.success("Section 6 reordered successfully");
     } catch (error) {
       // Error is already handled by the thunk
     }
@@ -677,6 +834,7 @@ const HomeSettings: React.FC = () => {
   const handleSection7Reorder = async (
     reorderedItems: Array<{ id: number | string; name: string; image: string }>
   ) => {
+    saveScrollPosition(); // Save current scroll position
     // Map reordered items to backend format with section7Order
     const categories = reorderedItems.map((item, index) => ({
       _id: String(item.id),
@@ -685,8 +843,8 @@ const HomeSettings: React.FC = () => {
 
     try {
       await dispatch(reorderHomeSection7Thunk({ categories })).unwrap();
-      // Refresh data after successful reorder
-      dispatch(getHomeDataThunk());
+      // Don't refresh data - optimistic updates should handle UI changes
+      toast.success("Section 7 reordered successfully");
     } catch (error) {
       // Error is already handled by the thunk
     }
@@ -695,6 +853,7 @@ const HomeSettings: React.FC = () => {
   const handleSection8Reorder = async (
     reorderedItems: Array<{ id: number | string; name: string; image: string }>
   ) => {
+    saveScrollPosition(); // Save current scroll position
     // Map reordered items to backend format with section8Order
     const subcategories = reorderedItems.map((item, index) => ({
       _id: String(item.id),
@@ -703,8 +862,8 @@ const HomeSettings: React.FC = () => {
 
     try {
       await dispatch(reorderHomeSection8Thunk({ subcategories })).unwrap();
-      // Refresh data after successful reorder
-      dispatch(getHomeDataThunk());
+      // Don't refresh data - optimistic updates should handle UI changes
+      toast.success("Section 8 reordered successfully");
     } catch (error) {
       // Error is already handled by the thunk
     }
@@ -776,6 +935,48 @@ const HomeSettings: React.FC = () => {
             selectedIds={section2Selection}
             onSelectionChange={handleSection2Change}
             onReorder={handleSection2Reorder}
+            multiSelect={true}
+            draggable={true}
+            updatingIds={new Set(updatingIds)}
+          />
+        </div>
+
+        {/* Custom Section */}
+        <div className="section-card">
+          <h2 className="text-lg font-semibold text-foreground mb-4">
+            Custom Section - Featured Categories
+          </h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Add a title and select multiple categories. Drag to reorder.
+          </p>
+          <div className="mb-4">
+            <Label htmlFor="customSectionTitle">Section Title</Label>
+            <div className="flex items-end gap-2 mt-1">
+              <Input
+                id="customSectionTitle"
+                value={customSectionTitle}
+                onChange={(e) => setCustomSectionTitle(e.target.value)}
+                placeholder="Enter custom section title"
+                className="max-w-md"
+              />
+              {hasCustomSectionChanges && (
+                <Button
+                  onClick={handleSaveCustomSectionTitle}
+                  disabled={savingCustomSection}
+                  className="gradient-primary text-primary-foreground"
+                  size="sm"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  {savingCustomSection ? "Saving..." : "Save"}
+                </Button>
+              )}
+            </div>
+          </div>
+          <SelectableList
+            items={customSectionItems}
+            selectedIds={customSectionSelection}
+            onSelectionChange={handleCustomSectionChange}
+            onReorder={handleCustomSectionReorder}
             multiSelect={true}
             draggable={true}
             updatingIds={new Set(updatingIds)}

@@ -2131,44 +2131,44 @@ const DashboardTest: React.FC = () => {
         </div>
 
         {/* Total Users */}
-        <div className="bg-gradient-to-br from-violet-500 to-violet-600 rounded-xl p-6 text-white shadow-lg">
+        <div className="bg-gradient-to-br from-violet-500 to-violet-600 rounded-xl p-6 text-white shadow-lg min-w-0">
           <div className="flex items-start justify-between mb-4">
-            <div className="p-3 bg-white/20 rounded-lg backdrop-blur-sm">
+            <div className="p-3 bg-white/20 rounded-lg backdrop-blur-sm flex-shrink-0">
               <Users className="w-6 h-6" />
             </div>
-            <div className="flex items-center gap-1 text-xs bg-white/20 px-2 py-1 rounded-full">
+            <div className="flex items-center gap-1 text-xs bg-white/20 px-2 py-1 rounded-full flex-shrink-0">
               <ArrowUpRight className="w-3 h-3" />
-              <span>23,406</span>
+              <span className="whitespace-nowrap">23.64%</span>
             </div>
           </div>
-          <div>
-            <p className="text-sm opacity-90 mb-1">Total Users</p>
-            <p className="text-3xl font-bold">
+          <div className="min-w-0">
+            <p className="text-sm opacity-90 mb-1 truncate">Total Users</p>
+            <p className="text-3xl font-bold truncate">
               {(stats.totalUsers || 0).toLocaleString()}
             </p>
-            <p className="text-xs opacity-75 mt-2">
+            <p className="text-xs opacity-75 mt-2 truncate">
               +1,227 new users this week
             </p>
           </div>
         </div>
 
         {/* Premium Subscribers */}
-        <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl p-6 text-white shadow-lg">
+        <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl p-6 text-white shadow-lg min-w-0">
           <div className="flex items-start justify-between mb-4">
-            <div className="p-3 bg-white/20 rounded-lg backdrop-blur-sm">
-              <UserCheck className="w-6 h-6" />
+            <div className="p-3 bg-white/20 rounded-lg backdrop-blur-sm flex-shrink-0">
+              <Crown className="w-6 h-6" />
             </div>
-            <div className="flex items-center gap-1 text-xs bg-white/20 px-2 py-1 rounded-full">
+            <div className="flex items-center gap-1 text-xs bg-white/20 px-2 py-1 rounded-full flex-shrink-0">
               <ArrowUpRight className="w-3 h-3" />
-              <span>1,237</span>
+              <span className="whitespace-nowrap">15.2%</span>
             </div>
           </div>
-          <div>
-            <p className="text-sm opacity-90 mb-1">Premium Users</p>
-            <p className="text-3xl font-bold">
+          <div className="min-w-0">
+            <p className="text-sm opacity-90 mb-1 truncate">Premium Users</p>
+            <p className="text-3xl font-bold truncate">
               {(stats.subscribedUsers || 0).toLocaleString()}
             </p>
-            <p className="text-xs opacity-75 mt-2">Active subscriptions</p>
+            <p className="text-xs opacity-75 mt-2 truncate">Active subscriptions</p>
           </div>
         </div>
       </div>
@@ -2560,38 +2560,38 @@ const DashboardTest: React.FC = () => {
           ) : (
             <FeaturePerformanceChart data={filteredFeatureData} />
           )}
-          <div className="grid grid-cols-2 gap-4 mt-6">
-            <div className="p-4 bg-gray-50 rounded-lg">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
+            <div className="p-4 bg-gray-50 rounded-lg min-w-0">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-gray-600">Total Uses</span>
-                <span className="text-sm font-semibold text-gray-900">
+                <span className="text-xs text-gray-600 truncate">Total Uses</span>
+                <span className="text-sm font-semibold text-gray-900 ml-2 flex-shrink-0">
                   {totalUses.toLocaleString()}
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
-                  className="bg-blue-600 h-2 rounded-full"
-                  style={{ width: `${usageRate}%` }}
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${Math.min(usageRate, 100)}%` }}
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 mt-1 truncate">
                 {usageRate}% usage rate
               </p>
             </div>
-            <div className="p-4 bg-gray-50 rounded-lg">
+            <div className="p-4 bg-gray-50 rounded-lg min-w-0">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-gray-600">Paywall Hits</span>
-                <span className="text-sm font-semibold text-gray-900">
+                <span className="text-xs text-gray-600 truncate">Paywall Hits</span>
+                <span className="text-sm font-semibold text-gray-900 ml-2 flex-shrink-0">
                   {paywallHitsVal.toLocaleString()}
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
-                  className="bg-emerald-600 h-2 rounded-full"
-                  style={{ width: `${paywallConversionRate}%` }}
+                  className="bg-emerald-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${Math.min(paywallConversionRate, 100)}%` }}
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 mt-1 truncate">
                 {paywallConversionRate}% conversion
               </p>
             </div>

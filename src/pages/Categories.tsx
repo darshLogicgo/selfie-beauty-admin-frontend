@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Pencil, Trash2, X, Upload, Image as ImageIcon, Video, Images } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, memo, lazy, Suspense } from 'react';
+import { Plus, Pencil, Trash2, X, Upload, Image as ImageIcon, Video, Images, ChevronUp, ChevronDown, Loader2, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,13 +9,935 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import CountrySelect from '@/components/ui/CountrySelect';
 import DraggableTable from '@/components/ui/DraggableTable';
+import VirtualizedAssetGrid from '@/components/ui/VirtualizedAssetGridOptimized';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { mockCategories, Category } from '@/data/mockData';
 import toast from 'react-hot-toast';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { createCategoryThunk, updateCategoryThunk, getCategoryThunk, deleteCategoryThunk, toggleCategoryStatusThunk, toggleCategoryAndroidActiveThunk, toggleCategoryIOSActiveThunk, reorderCategoryThunk, toggleCategoryPremiumThunk, updateCategoryAssetThunk, uploadCategoryAssetsThunk } from '@/store/category/thunk';
+import { createCategoryThunk, updateCategoryThunk, getCategoryThunk, deleteCategoryThunk, toggleCategoryStatusThunk, toggleCategoryAndroidActiveThunk, toggleCategoryIOSActiveThunk, reorderCategoryThunk, toggleCategoryPremiumThunk, updateCategoryAssetThunk, uploadCategoryAssetsThunk, reorderCategoryAssetsThunk, deleteCategoryAssetThunk } from '@/store/category/thunk';
 import { useFormik } from 'formik';
 import * as yup from 'yup';
+import {
+  getCountryShortName,
+} from '@/constants/countries';
+
+// Enhanced debounce with leading edge execution for better UX
+const debounce = <T extends (...args: any[]) => any>(
+  func: T,
+  delay: number,
+  options: { leading?: boolean; trailing?: boolean } = { leading: false, trailing: true }
+): ((...args: Parameters<T>) => void) => {
+  let timeoutId: NodeJS.Timeout;
+  let lastCallTime = 0;
+  
+  return (...args: Parameters<T>) => {
+    const now = Date.now();
+    const shouldCallLeading = options.leading && now - lastCallTime >= delay;
+    
+    clearTimeout(timeoutId);
+    
+    if (shouldCallLeading) {
+      func(...args);
+      lastCallTime = now;
+    } else if (options.trailing) {
+      timeoutId = setTimeout(() => {
+        func(...args);
+        lastCallTime = Date.now();
+      }, delay);
+    }
+  };
+};
+
+// Performance monitoring hook
+const usePerformanceMonitor = (componentName: string) => {
+  useEffect(() => {
+    const startTime = performance.now();
+    return () => {
+      const endTime = performance.now();
+      console.log(`${componentName} render time: ${endTime - startTime}ms`);
+    };
+  });
+};
+
+// Optimized image loading component with intersection observer
+const OptimizedImage = memo(({ 
+  src, 
+  alt, 
+  className, 
+  onLoad, 
+  onError 
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+  onLoad?: () => void;
+  onError?: () => void;
+}) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [isInView, setIsInView] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1, rootMargin: '50px' }
+    );
+
+    if (imgRef.current) {
+      observer.observe(imgRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  const handleLoad = useCallback(() => {
+    setIsLoaded(true);
+    onLoad?.();
+  }, [onLoad]);
+
+  const handleError = useCallback(() => {
+    setHasError(true);
+    onError?.();
+  }, [onError]);
+
+  return (
+    <div ref={imgRef} className={`relative ${className}`}>
+      {isInView && !hasError && (
+        <img
+          src={src}
+          alt={alt}
+          onLoad={handleLoad}
+          onError={handleError}
+          className={`transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'} ${className}`}
+          loading="lazy"
+        />
+      )}
+      {!isLoaded && isInView && (
+        <div className={`absolute inset-0 bg-gray-200 animate-pulse ${className}`} />
+      )}
+      {hasError && (
+        <div className={`absolute inset-0 bg-gray-300 flex items-center justify-center ${className}`}>
+          <ImageIcon className="w-6 h-6 text-gray-500" />
+        </div>
+      )}
+    </div>
+  );
+});
+
+OptimizedImage.displayName = 'OptimizedImage';
+
+// Draggable Asset Grid Component
+const DraggableAssetGrid = memo(({
+  assets,
+  selectedAssets,
+  onAssetSelect,
+  onDeleteImage,
+  onViewImage,
+  onPremiumToggle,
+  onImageCountChange,
+  onPromptChange,
+  onCountryChange,
+  editingAsset,
+  editingAssetPrompt,
+  setEditingAsset,
+  setEditingAssetPrompt,
+  assetLoadingStates,
+  onReorder,
+  containerHeight = 384, // 24rem = max-h-96
+  itemHeight = 320, // Approximate height of each asset card
+  columns = 3
+}: {
+  assets: AssetImage[];
+  selectedAssets: string[];
+  onAssetSelect: (assetId: string) => void;
+  onDeleteImage: (asset: AssetImage) => void;
+  onViewImage: (asset: AssetImage) => void;
+  onPremiumToggle: (asset: AssetImage) => void;
+  onImageCountChange: (asset: AssetImage, newCount: number) => void;
+  onPromptChange: (asset: AssetImage, newPrompt: string) => void;
+  onCountryChange: (asset: AssetImage, newCountry: string) => void;
+  editingAsset: { assetId: string; imageCount: number } | null;
+  editingAssetPrompt: { assetId: string; prompt: string } | null;
+  setEditingAsset: (asset: { assetId: string; imageCount: number } | null) => void;
+  setEditingAssetPrompt: (asset: { assetId: string; prompt: string } | null) => void;
+  assetLoadingStates: Set<string>;
+  onReorder: (oldIndex: number, newIndex: number) => void;
+  containerHeight?: number;
+  itemHeight?: number;
+  columns?: number;
+}) => {
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (active.id !== over?.id) {
+      const oldIndex = assets.findIndex((asset) => asset._id === active.id);
+      const newIndex = assets.findIndex((asset) => asset._id === over?.id);
+      
+      if (oldIndex !== -1 && newIndex !== -1) {
+        onReorder(oldIndex, newIndex);
+      }
+    }
+  };
+
+  // For small datasets, render normally without virtualization
+  if (assets.length <= 30) {
+    return (
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext items={assets.map(asset => asset._id)} strategy={verticalListSortingStrategy}>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-2 border rounded-lg bg-muted/30 max-h-96 overflow-y-auto">
+            {assets.map((asset: AssetImage) => (
+              <SortableAssetCard
+                key={asset._id}
+                asset={asset}
+                selectedAssets={selectedAssets}
+                onAssetSelect={onAssetSelect}
+                onDeleteImage={onDeleteImage}
+                onViewImage={onViewImage}
+                onPremiumToggle={onPremiumToggle}
+                onImageCountChange={onImageCountChange}
+                onPromptChange={onPromptChange}
+                onCountryChange={onCountryChange}
+                editingAsset={editingAsset}
+                editingAssetPrompt={editingAssetPrompt}
+                setEditingAsset={setEditingAsset}
+                setEditingAssetPrompt={setEditingAssetPrompt}
+                loading={assetLoadingStates.has(asset._id)}
+                assets={assets}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
+    );
+  }
+
+  // For larger datasets, you could implement virtualized drag and drop
+  // For now, we'll use the non-virtualized version for simplicity
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext items={assets.map(asset => asset._id)} strategy={verticalListSortingStrategy}>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-2 border rounded-lg bg-muted/30 max-h-96 overflow-y-auto">
+          {assets.map((asset: AssetImage) => (
+            <SortableAssetCard
+              key={asset._id}
+              asset={asset}
+              selectedAssets={selectedAssets}
+              onAssetSelect={onAssetSelect}
+              onDeleteImage={onDeleteImage}
+              onViewImage={onViewImage}
+              onPremiumToggle={onPremiumToggle}
+              onImageCountChange={onImageCountChange}
+              onPromptChange={onPromptChange}
+              onCountryChange={onCountryChange}
+              editingAsset={editingAsset}
+              editingAssetPrompt={editingAssetPrompt}
+              setEditingAsset={setEditingAsset}
+              setEditingAssetPrompt={setEditingAssetPrompt}
+              loading={assetLoadingStates.has(asset._id)}
+              assets={assets}
+            />
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
+  );
+});
+
+DraggableAssetGrid.displayName = 'DraggableAssetGrid';
+
+// Sortable Asset Card Component
+const SortableAssetCard = memo(({
+  asset,
+  selectedAssets,
+  onAssetSelect,
+  onDeleteImage,
+  onViewImage,
+  onPremiumToggle,
+  onImageCountChange,
+  onPromptChange,
+  onCountryChange,
+  editingAsset,
+  editingAssetPrompt,
+  setEditingAsset,
+  setEditingAssetPrompt,
+  loading,
+  assets
+}: {
+  asset: AssetImage;
+  selectedAssets: string[];
+  onAssetSelect: (assetId: string) => void;
+  onDeleteImage: (asset: AssetImage) => void;
+  onViewImage: (asset: AssetImage) => void;
+  onPremiumToggle: (asset: AssetImage) => void;
+  onImageCountChange: (asset: AssetImage, newCount: number) => void;
+  onPromptChange: (asset: AssetImage, newPrompt: string) => void;
+  onCountryChange: (asset: AssetImage, newCountry: string) => void;
+  editingAsset: { assetId: string; imageCount: number } | null;
+  editingAssetPrompt: { assetId: string; prompt: string } | null;
+  setEditingAsset: (asset: { assetId: string; imageCount: number } | null) => void;
+  setEditingAssetPrompt: (asset: { assetId: string; prompt: string } | null) => void;
+  loading: boolean;
+  assets: AssetImage[];
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: asset._id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`relative group border rounded-lg p-3 bg-card hover:shadow-md transition-shadow ${
+        selectedAssets.includes(asset._id)
+          ? "ring-2 ring-primary"
+          : ""
+      }`}
+    >
+      {/* Drag Handle - Top Left */}
+      <div
+        {...attributes}
+        {...listeners}
+        className="absolute top-2 left-2 z-20 cursor-grab active:cursor-grabbing p-1 rounded hover:bg-muted/80 transition-colors"
+      >
+        <GripVertical className="w-4 h-4 text-muted-foreground" />
+      </div>
+      
+      {/* Checkbox - Top Left (next to drag handle) */}
+      <div className="absolute top-2 left-10 z-20">
+        <Checkbox
+          checked={selectedAssets.includes(asset._id)}
+          onCheckedChange={() => onAssetSelect(asset._id)}
+          className="bg-background"
+        />
+      </div>
+      
+      {/* Delete Button - Top Right */}
+      <Button
+        type="button"
+        variant="destructive"
+        size="icon"
+        className="absolute top-2 right-2 h-7 w-7 rounded-full shadow-md hover:scale-110 transition-transform opacity-0 group-hover:opacity-100 z-10"
+        onClick={() => onDeleteImage(asset)}
+      >
+        <Trash2 className="w-4 h-4" />
+      </Button>
+
+      {/* Image - Clickable to view full size */}
+      <div
+        className="relative w-full aspect-square rounded-lg overflow-hidden border-2 border-border bg-muted mb-3 cursor-pointer hover:opacity-90 transition-opacity"
+        onClick={() => onViewImage(asset)}
+      >
+        <LazyImage
+          src={asset.url}
+          alt="Asset"
+          className="w-full h-full"
+        />
+        {/* URL Tooltip - Only on hover, not displayed */}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="absolute inset-0" />
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="max-w-xs break-all text-xs">
+                {asset.url}
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+
+      {/* Asset Details */}
+      <div className="space-y-2.5">
+        {/* Premium Toggle */}
+        <div className="flex items-center justify-between py-0.5">
+          <Label className="text-xs font-medium text-foreground">
+            Premium
+          </Label>
+          <Switch
+            checked={asset.isPremium}
+            onCheckedChange={() => onPremiumToggle(asset)}
+            disabled={loading}
+          />
+        </div>
+
+        {/* Image Count */}
+        <div className="space-y-1">
+          <Label className="text-xs font-medium text-muted-foreground">
+            Count
+          </Label>
+          {editingAsset?.assetId === asset._id ? (
+            <div className="flex items-center border-2 border-primary rounded-md bg-background overflow-hidden shadow-sm ring-1 ring-primary/20 w-28">
+              <Input
+                type="number"
+                min="1"
+                value={editingAsset.imageCount}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value) || 1;
+                  setEditingAsset({
+                    assetId: asset._id,
+                    imageCount: Math.max(1, value),
+                  });
+                }}
+                className="h-9 w-12 text-center text-sm font-semibold border-0 focus-visible:ring-0 p-0 bg-transparent text-foreground"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    onImageCountChange(asset, editingAsset.imageCount);
+                  } else if (e.key === "Escape") {
+                    setEditingAsset(null);
+                  }
+                }}
+                onBlur={() => {
+                  onImageCountChange(asset, editingAsset.imageCount);
+                }}
+                autoFocus
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-7 rounded-none hover:bg-primary/10 active:bg-primary/20 border-r border-primary/30 transition-colors"
+                onClick={() => {
+                  const newCount = Math.max(
+                    1,
+                    editingAsset.imageCount - 1
+                  );
+                  setEditingAsset({
+                    assetId: asset._id,
+                    imageCount: newCount,
+                  });
+                }}
+                disabled={loading || editingAsset.imageCount <= 1}
+              >
+                <ChevronDown className="w-3.5 h-3.5 text-primary" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-7 rounded-none hover:bg-primary/10 active:bg-primary/20 border-l border-primary/30 transition-colors"
+                onClick={() => {
+                  const newCount = editingAsset.imageCount + 1;
+                  setEditingAsset({
+                    assetId: asset._id,
+                    imageCount: newCount,
+                  });
+                }}
+                disabled={loading}
+              >
+                <ChevronUp className="w-3.5 h-3.5 text-primary" />
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center border border-border rounded-md bg-background overflow-hidden hover:border-primary/50 hover:shadow-sm transition-all w-28">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-7 rounded-none hover:bg-muted active:bg-muted/80 border-r border-border transition-colors"
+                onClick={() => {
+                  const newCount = Math.max(1, asset.imageCount - 1);
+                  onImageCountChange(asset, newCount);
+                }}
+                disabled={loading || asset.imageCount <= 1}
+              >
+                <ChevronDown className="w-3.5 h-3.5" />
+              </Button>
+              <div
+                className="h-9 w-12 flex items-center justify-center text-sm font-semibold text-foreground cursor-text hover:bg-muted/40 active:bg-muted/60 transition-colors select-none rounded-md border border-border hover:border-primary/50"
+                onClick={() =>
+                  setEditingAsset({
+                    assetId: asset._id,
+                    imageCount: asset.imageCount,
+                  })
+                }
+              >
+                {asset.imageCount}
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-7 rounded-none hover:bg-muted active:bg-muted/80 border-l border-border transition-colors"
+                onClick={() => {
+                  const newCount = asset.imageCount + 1;
+                  onImageCountChange(asset, newCount);
+                }}
+                disabled={loading}
+              >
+                <ChevronUp className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Prompt */}
+        <div className="space-y-1">
+          <Label className="text-xs font-medium text-muted-foreground">
+            Prompt (Optional)
+          </Label>
+          {editingAssetPrompt?.assetId === asset._id ? (
+            <div className="flex items-center border-2 border-primary rounded-md bg-background overflow-hidden shadow-sm ring-1 ring-primary/20">
+              <Textarea
+                value={editingAssetPrompt.prompt}
+                onChange={(e) => {
+                  setEditingAssetPrompt({
+                    assetId: asset._id,
+                    prompt: e.target.value,
+                  });
+                }}
+                className="h-9 text-sm font-semibold border-0 focus-visible:ring-0 p-2 bg-transparent text-foreground resize-none"
+                placeholder="Enter prompt..."
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    onPromptChange(asset, editingAssetPrompt.prompt);
+                  } else if (e.key === "Escape") {
+                    setEditingAssetPrompt(null);
+                  }
+                }}
+                onBlur={() => {
+                  onPromptChange(asset, editingAssetPrompt.prompt);
+                }}
+                autoFocus
+              />
+            </div>
+          ) : (
+            <div
+              className="h-9 w-full flex items-center justify-center text-sm text-muted-foreground cursor-text hover:bg-muted/40 active:bg-muted/60 transition-colors rounded-md border border-border hover:border-primary/50 px-2 truncate"
+              onClick={() =>
+                setEditingAssetPrompt({
+                  assetId: asset._id,
+                  prompt: asset.prompt || "",
+                })
+              }
+              title={asset.prompt || "Click to add prompt"}
+            >
+              {asset.prompt || "N/A"}
+            </div>
+          )}
+        </div>
+
+        {/* Country Dropdown */}
+        <div className="space-y-1">
+          <Label className="text-xs font-medium text-muted-foreground">
+            Country (Optional)
+          </Label>
+          <CountrySelect
+            value={asset.country || ""}
+            onValueChange={(value) => {
+              onCountryChange(asset, value);
+            }}
+            placeholder="Select country..."
+            triggerClassName="h-9 text-sm"
+          />
+        </div>
+      </div>
+    </div>
+  );
+});
+
+SortableAssetCard.displayName = 'SortableAssetCard';
+
+// Lazy Image Component with Intersection Observer
+const LazyImage = memo(({ 
+  src, 
+  alt, 
+  className, 
+  onError 
+}: { 
+  src: string; 
+  alt: string; 
+  className?: string; 
+  onError?: (e: React.SyntheticEvent<HTMLImageElement>) => void;
+}) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [isInView, setIsInView] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (imgRef.current) {
+      observer.observe(imgRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  const handleLoad = () => {
+    setIsLoaded(true);
+  };
+
+  const handleError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    setHasError(true);
+    if (onError) onError(e);
+  };
+
+  return (
+    <div ref={imgRef} className={`relative ${className}`}>
+      {!isLoaded && !hasError && (
+        <div className="absolute inset-0 bg-muted animate-pulse rounded-lg" />
+      )}
+      {hasError ? (
+        <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground bg-destructive/10 rounded-lg">
+          Failed to load
+        </div>
+      ) : (
+        isInView && (
+          <img
+            src={src}
+            alt={alt}
+            className={`w-full h-full object-cover transition-opacity duration-300 ${
+              isLoaded ? 'opacity-100' : 'opacity-0'
+            }`}
+            onLoad={handleLoad}
+            onError={handleError}
+          />
+        )
+      )}
+    </div>
+  );
+});
+
+LazyImage.displayName = 'LazyImage';
+// Memoized Asset Card Component
+const AssetCard = memo(({
+  asset,
+  selectedAssets,
+  onAssetSelect,
+  onDeleteImage,
+  onViewImage,
+  onPremiumToggle,
+  onImageCountChange,
+  onPromptChange,
+  onCountryChange,
+  editingAsset,
+  editingAssetPrompt,
+  setEditingAsset,
+  setEditingAssetPrompt,
+  loading,
+  assets
+}: {
+  asset: AssetImage;
+  selectedAssets: string[];
+  onAssetSelect: (assetId: string) => void;
+  onDeleteImage: (asset: AssetImage) => void;
+  onViewImage: (asset: AssetImage) => void;
+  onPremiumToggle: (asset: AssetImage) => void;
+  onImageCountChange: (asset: AssetImage, newCount: number) => void;
+  onPromptChange: (asset: AssetImage, newPrompt: string) => void;
+  onCountryChange: (asset: AssetImage, newCountry: string) => void;
+  editingAsset: { assetId: string; imageCount: number } | null;
+  editingAssetPrompt: { assetId: string; prompt: string } | null;
+  setEditingAsset: (asset: { assetId: string; imageCount: number } | null) => void;
+  setEditingAssetPrompt: (asset: { assetId: string; prompt: string } | null) => void;
+  loading: boolean;
+  assets: AssetImage[];
+}) => {
+  return (
+    <div
+      className={`relative group border rounded-lg p-3 bg-card hover:shadow-md transition-shadow ${
+        selectedAssets.includes(asset._id)
+          ? "ring-2 ring-primary"
+          : ""
+      }`}
+    >
+      {/* Checkbox - Top Left */}
+      <div className="absolute top-2 left-2 z-20">
+        <Checkbox
+          checked={selectedAssets.includes(asset._id)}
+          onCheckedChange={() => onAssetSelect(asset._id)}
+          className="bg-background"
+        />
+      </div>
+      {/* Delete Button - Top Right */}
+      <Button
+        type="button"
+        variant="destructive"
+        size="icon"
+        className="absolute top-2 right-2 h-7 w-7 rounded-full shadow-md hover:scale-110 transition-transform opacity-0 group-hover:opacity-100 z-10"
+        onClick={() => onDeleteImage(asset)}
+      >
+        <Trash2 className="w-4 h-4" />
+      </Button>
+
+      {/* Image - Clickable to view full size */}
+      <div
+        className="relative w-full aspect-square rounded-lg overflow-hidden border-2 border-border bg-muted mb-3 cursor-pointer hover:opacity-90 transition-opacity"
+        onClick={() => onViewImage(asset)}
+      >
+        <LazyImage
+          src={asset.url}
+          alt="Asset"
+          className="w-full h-full"
+        />
+        {/* URL Tooltip - Only on hover, not displayed */}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="absolute inset-0" />
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="max-w-xs break-all text-xs">
+                {asset.url}
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+
+      {/* Asset Details */}
+      <div className="space-y-2.5">
+        {/* Premium Toggle */}
+        <div className="flex items-center justify-between py-0.5">
+          <Label className="text-xs font-medium text-foreground">
+            Premium
+          </Label>
+          <Switch
+            checked={asset.isPremium}
+            onCheckedChange={() => onPremiumToggle(asset)}
+            disabled={loading}
+          />
+        </div>
+
+        {/* Image Count */}
+        <div className="space-y-1">
+          <Label className="text-xs font-medium text-muted-foreground">
+            Count
+          </Label>
+          {editingAsset?.assetId === asset._id ? (
+            <div className="flex items-center border-2 border-primary rounded-md bg-background overflow-hidden shadow-sm ring-1 ring-primary/20 w-28">
+              <Input
+                type="number"
+                min="1"
+                value={editingAsset.imageCount}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value) || 1;
+                  setEditingAsset({
+                    assetId: asset._id,
+                    imageCount: Math.max(1, value),
+                  });
+                }}
+                className="h-9 w-12 text-center text-sm font-semibold border-0 focus-visible:ring-0 p-0 bg-transparent text-foreground"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    onImageCountChange(asset, editingAsset.imageCount);
+                  } else if (e.key === "Escape") {
+                    setEditingAsset(null);
+                  }
+                }}
+                onBlur={() => {
+                  onImageCountChange(asset, editingAsset.imageCount);
+                }}
+                autoFocus
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-7 rounded-none hover:bg-primary/10 active:bg-primary/20 border-r border-primary/30 transition-colors"
+                onClick={() => {
+                  const newCount = Math.max(
+                    1,
+                    editingAsset.imageCount - 1
+                  );
+                  setEditingAsset({
+                    assetId: asset._id,
+                    imageCount: newCount,
+                  });
+                }}
+                disabled={loading || editingAsset.imageCount <= 1}
+              >
+                <ChevronDown className="w-3.5 h-3.5 text-primary" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-7 rounded-none hover:bg-primary/10 active:bg-primary/20 border-l border-primary/30 transition-colors"
+                onClick={() => {
+                  const newCount = editingAsset.imageCount + 1;
+                  setEditingAsset({
+                    assetId: asset._id,
+                    imageCount: newCount,
+                  });
+                }}
+                disabled={loading}
+              >
+                <ChevronUp className="w-3.5 h-3.5 text-primary" />
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center border border-border rounded-md bg-background overflow-hidden hover:border-primary/50 hover:shadow-sm transition-all w-28">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-7 rounded-none hover:bg-muted active:bg-muted/80 border-r border-border transition-colors"
+                onClick={() => {
+                  const newCount = Math.max(1, asset.imageCount - 1);
+                  onImageCountChange(asset, newCount);
+                }}
+                disabled={loading || asset.imageCount <= 1}
+              >
+                <ChevronDown className="w-3.5 h-3.5" />
+              </Button>
+              <div
+                className="h-9 w-12 flex items-center justify-center text-sm font-semibold text-foreground cursor-text hover:bg-muted/40 active:bg-muted/60 transition-colors select-none rounded-md border border-border hover:border-primary/50"
+                onClick={() =>
+                  setEditingAsset({
+                    assetId: asset._id,
+                    imageCount: asset.imageCount,
+                  })
+                }
+              >
+                {asset.imageCount}
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-7 rounded-none hover:bg-muted active:bg-muted/80 border-l border-border transition-colors"
+                onClick={() => {
+                  const newCount = asset.imageCount + 1;
+                  onImageCountChange(asset, newCount);
+                }}
+                disabled={loading}
+              >
+                <ChevronUp className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Prompt */}
+        <div className="space-y-1">
+          <Label className="text-xs font-medium text-muted-foreground">
+            Prompt (Optional)
+          </Label>
+          {editingAssetPrompt?.assetId === asset._id ? (
+            <div className="flex items-center border-2 border-primary rounded-md bg-background overflow-hidden shadow-sm ring-1 ring-primary/20">
+              <Textarea
+                value={editingAssetPrompt.prompt}
+                onChange={(e) => {
+                  setEditingAssetPrompt({
+                    assetId: asset._id,
+                    prompt: e.target.value,
+                  });
+                }}
+                className="h-9 text-sm font-semibold border-0 focus-visible:ring-0 p-2 bg-transparent text-foreground resize-none"
+                placeholder="Enter prompt..."
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    onPromptChange(asset, editingAssetPrompt.prompt);
+                  } else if (e.key === "Escape") {
+                    setEditingAssetPrompt(null);
+                  }
+                }}
+                onBlur={() => {
+                  onPromptChange(asset, editingAssetPrompt.prompt);
+                }}
+                autoFocus
+              />
+            </div>
+          ) : (
+            <div
+              className="h-9 w-full flex items-center justify-center text-sm text-muted-foreground cursor-text hover:bg-muted/40 active:bg-muted/60 transition-colors rounded-md border border-border hover:border-primary/50 px-2 truncate"
+              onClick={() =>
+                setEditingAssetPrompt({
+                  assetId: asset._id,
+                  prompt: asset.prompt || "",
+                })
+              }
+              title={asset.prompt || "Click to add prompt"}
+            >
+              {asset.prompt || "N/A"}
+            </div>
+          )}
+        </div>
+
+        {/* Country Dropdown */}
+        <div className="space-y-1">
+          <Label className="text-xs font-medium text-muted-foreground">
+            Country (Optional)
+          </Label>
+          <CountrySelect
+            value={asset.country || ""}
+            onValueChange={(value) => {
+              onCountryChange(asset, value);
+            }}
+            placeholder="Select country..."
+            triggerClassName="h-9 text-sm"
+          />
+        </div>
+      </div>
+    </div>
+  );
+});
+
+AssetCard.displayName = 'AssetCard';
 
 // Asset type based on API response
 interface AssetImage {
@@ -71,11 +993,14 @@ const Categories: React.FC = () => {
   const [deleteCategory, setDeleteCategory] = useState<(Category & { _id?: string; isPremium?: boolean; images?: AssetImage[] }) | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<(Category & { _id?: string; isPremium?: boolean; images?: AssetImage[] }) | null>(null);
   const [newImages, setNewImages] = useState<Array<{ url: string; file?: File; preview?: string; prompt?: string; country?: string }>>([]);
+  const [commonCountryForNewImages, setCommonCountryForNewImages] = useState<string>("");
   const [editingAsset, setEditingAsset] = useState<{
     assetId: string;
     imageCount: number;
-    prompt?: string;
-    country?: string;
+  } | null>(null);
+  const [editingAssetPrompt, setEditingAssetPrompt] = useState<{
+    assetId: string;
+    prompt: string;
   } | null>(null);
   const [viewingImage, setViewingImage] = useState<{
     url: string;
@@ -86,14 +1011,28 @@ const Categories: React.FC = () => {
     assetId: string;
     imageUrl: string;
   } | null>(null);
+  const [selectedAssets, setSelectedAssets] = useState<string[]>([]);
+  const [assetLoadingStates, setAssetLoadingStates] = useState<Set<string>>(new Set());
+  const [optimisticAssets, setOptimisticAssets] = useState<Map<string, Partial<AssetImage>>>(new Map());
   const imageFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch categories on component mount
+  // Fetch categories on component mount with performance optimization
   useEffect(() => {
-    dispatch(getCategoryThunk(undefined));
+    const startTime = performance.now();
+    dispatch(getCategoryThunk(undefined)).finally(() => {
+      console.log(`Categories API call took: ${performance.now() - startTime}ms`);
+    });
   }, [dispatch]);
 
-  const isUsableMediaSrc = (src: unknown) => {
+  // Cleanup optimistic updates on unmount
+  useEffect(() => {
+    return () => {
+      setOptimisticAssets(new Map());
+      setAssetLoadingStates(new Set());
+    };
+  }, []);
+
+  const isUsableMediaSrc = useCallback((src: unknown) => {
     if (typeof src !== 'string') return false;
     const s = src.trim();
     if (!s || s === 'null' || s === 'undefined') return false;
@@ -104,48 +1043,67 @@ const Categories: React.FC = () => {
       s.startsWith('data:') ||
       s.startsWith('/')
     );
-  };
+  }, []);
 
-  // Map API response to Category type
-  useEffect(() => {
-    if (categoriesData && categoriesData.length > 0) {
-      const mappedCategories: (Category & { _id?: string; isPremium?: boolean; prompt?: string; isAndroid?: boolean; isIos?: boolean; images?: AssetImage[] })[] = categoriesData.map((item: any, index: number) => ({
-        id: parseInt(item._id?.slice(-8) || String(index + 1), 16) || index + 1, // Convert _id to number or use index
-        name: item.name || '',
-        prompt: item.prompt || '',
-        country: (item.country ?? '') || '',
-        android_appVersion: (item.android_appVersion ?? '') || '',
-        ios_appVersion: (item.ios_appVersion ?? '') || '',
-        imageSquare: (item.img_sqr && item.img_sqr !== null) ? item.img_sqr : '',
-        imageRectangle: (item.img_rec && item.img_rec !== null) ? item.img_rec : '',
-        videoSquare: (item.video_sqr && item.video_sqr !== null) ? item.video_sqr : '',
-        videoRectangle: (item.video_rec && item.video_rec !== null) ? item.video_rec : '',
-        status: item.status ?? true,
-        isPremium: item.isPremium ?? false,
-        isAndroid: item.isAndroid !== undefined ? item.isAndroid : false,
-        isIos: item.isIos !== undefined ? item.isIos : false,
-        order: item.order || index + 1,
-        images: (item.asset_images && Array.isArray(item.asset_images)) ? item.asset_images.map((asset: any) => ({
+  // Optimized mapping function with memoization
+  const mapApiToCategory = useCallback((item: any, index: number): Category & { _id?: string; isPremium?: boolean; prompt?: string; isAndroid?: boolean; isIos?: boolean; images?: AssetImage[] } => {
+    const images = (item.asset_images && Array.isArray(item.asset_images)) 
+      ? item.asset_images.map((asset: any) => ({
           _id: asset._id || '',
           url: asset.url || '',
           isPremium: asset.isPremium ?? false,
           imageCount: asset.imageCount ?? 1,
           prompt: asset.prompt || '',
           country: asset.country || '',
-        })) : [],
-        _id: item._id, // Store original _id for API calls
-      }));
-      setCategories(mappedCategories);
-      // Store original order of _ids
-      const originalIds = mappedCategories.map(cat => cat._id || '').filter(id => id !== '');
-      setOriginalOrder(originalIds);
-      setHasOrderChanged(false);
-    } else if (categoriesData && categoriesData.length === 0) {
+        }))
+      : [];
+
+    return {
+      id: parseInt(item._id?.slice(-8) || String(index + 1), 16) || index + 1,
+      name: item.name || '',
+      prompt: item.prompt || '',
+      country: (item.country ?? '') || '',
+      android_appVersion: (item.android_appVersion ?? '') || '',
+      ios_appVersion: (item.ios_appVersion ?? '') || '',
+      imageSquare: (item.img_sqr && item.img_sqr !== null) ? item.img_sqr : '',
+      imageRectangle: (item.img_rec && item.img_rec !== null) ? item.img_rec : '',
+      videoSquare: (item.video_sqr && item.video_sqr !== null) ? item.video_sqr : '',
+      videoRectangle: (item.video_rec && item.video_rec !== null) ? item.video_rec : '',
+      status: item.status ?? true,
+      isPremium: item.isPremium ?? false,
+      isAndroid: item.isAndroid !== undefined ? item.isAndroid : false,
+      isIos: item.isIos !== undefined ? item.isIos : false,
+      order: item.order || index + 1,
+      images,
+      _id: item._id,
+    };
+  }, []);
+
+  // Memoized categories mapping to prevent unnecessary recalculations
+  const memoizedCategories = useMemo(() => {
+    if (!categoriesData || categoriesData.length === 0) {
       setCategories([]);
       setOriginalOrder([]);
       setHasOrderChanged(false);
+      return [];
     }
-  }, [categoriesData]);
+    
+    const startTime = performance.now();
+    const mappedCategories = categoriesData.map(mapApiToCategory);
+    
+    // Store original order of _ids
+    const originalIds = mappedCategories.map(cat => cat._id || '').filter(id => id !== '');
+    setOriginalOrder(originalIds);
+    setHasOrderChanged(false);
+    
+    console.log(`Categories mapping took: ${performance.now() - startTime}ms for ${categoriesData.length} items`);
+    return mappedCategories;
+  }, [categoriesData, mapApiToCategory]);
+
+  // Map API response to Category type with performance optimization
+  useEffect(() => {
+    setCategories(memoizedCategories);
+  }, [memoizedCategories]);
 
   const [selectedFiles, setSelectedFiles] = useState({
     imageSquare: null as File | null,
@@ -548,11 +1506,366 @@ const Categories: React.FC = () => {
     setSelectedCategory(latestCategory || category);
     setNewImages([]);
     setEditingAsset(null);
+    setEditingAssetPrompt(null);
+    setSelectedAssets([]); // Clear selection when opening form
     setIsImageFormOpen(true);
-    // TODO: Fetch assets for this category when API is available
-    // if (category._id) {
-    //   await dispatch(getCategoryAssetsThunk({ id: category._id, queryParams: { page: 1, limit: 10 } }));
-    // }
+  };
+
+  // Handle asset selection
+  const handleAssetSelect = (assetId: string) => {
+    setSelectedAssets((prev) =>
+      prev.includes(assetId)
+        ? prev.filter((id) => id !== assetId)
+        : [...prev, assetId]
+    );
+  };
+
+  // Handle select all assets
+  const handleSelectAllAssets = () => {
+    if (selectedCategory?.images) {
+      if (selectedAssets.length === selectedCategory.images.length) {
+        setSelectedAssets([]);
+      } else {
+        setSelectedAssets(selectedCategory.images.map((asset: AssetImage) => asset._id));
+      }
+    }
+  };
+
+  // Handle bulk delete
+  const handleBulkDeleteAssets = () => {
+    if (selectedAssets.length === 0) {
+      toast.error("Please select at least one asset to delete");
+      return;
+    }
+    if (selectedCategory && selectedCategory._id) {
+      setDeleteImage({
+        categoryId: selectedCategory._id,
+        assetId: selectedAssets.join(","), // Pass comma-separated IDs
+        imageUrl: "", // Not used for bulk delete
+      });
+    }
+  };
+
+  // Debounced handlers for asset operations
+  const debouncedAssetPremiumToggle = useCallback(
+    debounce(async (asset: AssetImage, newPremiumValue: boolean) => {
+      if (selectedCategory && selectedCategory._id) {
+        setAssetLoadingStates(prev => new Set(prev).add(asset._id));
+        
+        // Optimistic update
+        setOptimisticAssets(prev => {
+          const newMap = new Map(prev);
+          newMap.set(asset._id, { ...newMap.get(asset._id), isPremium: newPremiumValue });
+          return newMap;
+        });
+
+        try {
+          const result = await dispatch(
+            updateCategoryAssetThunk({
+              id: selectedCategory._id,
+              data: {
+                assetId: asset._id,
+                isPremium: newPremiumValue,
+              },
+            })
+          );
+
+          if (updateCategoryAssetThunk.fulfilled.match(result)) {
+            // Clear optimistic update on success
+            setOptimisticAssets(prev => {
+              const newMap = new Map(prev);
+              newMap.delete(asset._id);
+              return newMap;
+            });
+            
+            // Refresh categories to get updated asset data
+            dispatch(getCategoryThunk(undefined));
+          } else {
+            // Revert optimistic update on failure
+            setOptimisticAssets(prev => {
+              const newMap = new Map(prev);
+              newMap.delete(asset._id);
+              return newMap;
+            });
+          }
+        } finally {
+          setAssetLoadingStates(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(asset._id);
+            return newSet;
+          });
+        }
+      }
+    }, 300),
+    [selectedCategory, dispatch]
+  );
+
+  const debouncedAssetImageCountChange = useCallback(
+    debounce(async (asset: AssetImage, newCount: number) => {
+      if (selectedCategory && selectedCategory._id && newCount > 0) {
+        setAssetLoadingStates(prev => new Set(prev).add(asset._id));
+        
+        // Optimistic update
+        setOptimisticAssets(prev => {
+          const newMap = new Map(prev);
+          newMap.set(asset._id, { ...newMap.get(asset._id), imageCount: newCount });
+          return newMap;
+        });
+
+        try {
+          const result = await dispatch(
+            updateCategoryAssetThunk({
+              id: selectedCategory._id,
+              data: {
+                assetId: asset._id,
+                imageCount: newCount,
+              },
+            })
+          );
+
+          if (updateCategoryAssetThunk.fulfilled.match(result)) {
+            // Clear optimistic update on success
+            setOptimisticAssets(prev => {
+              const newMap = new Map(prev);
+              newMap.delete(asset._id);
+              return newMap;
+            });
+            
+            // Refresh categories to get updated asset data
+            dispatch(getCategoryThunk(undefined));
+            setEditingAsset(null);
+          } else {
+            // Revert optimistic update on failure
+            setOptimisticAssets(prev => {
+              const newMap = new Map(prev);
+              newMap.delete(asset._id);
+              return newMap;
+            });
+          }
+        } finally {
+          setAssetLoadingStates(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(asset._id);
+            return newSet;
+          });
+        }
+      }
+    }, 300),
+    [selectedCategory, dispatch]
+  );
+
+  const debouncedAssetPromptChange = useCallback(
+    debounce(async (asset: AssetImage, newPrompt: string) => {
+      if (selectedCategory && selectedCategory._id) {
+        setAssetLoadingStates(prev => new Set(prev).add(asset._id));
+        
+        // Optimistic update
+        setOptimisticAssets(prev => {
+          const newMap = new Map(prev);
+          newMap.set(asset._id, { ...newMap.get(asset._id), prompt: newPrompt });
+          return newMap;
+        });
+
+        try {
+          const result = await dispatch(
+            updateCategoryAssetThunk({
+              id: selectedCategory._id,
+              data: {
+                assetId: asset._id,
+                prompt: newPrompt.trim(),
+              },
+            })
+          );
+
+          if (updateCategoryAssetThunk.fulfilled.match(result)) {
+            // Clear optimistic update on success
+            setOptimisticAssets(prev => {
+              const newMap = new Map(prev);
+              newMap.delete(asset._id);
+              return newMap;
+            });
+            
+            // Refresh categories to get updated asset data
+            dispatch(getCategoryThunk(undefined));
+            setEditingAssetPrompt(null);
+          } else {
+            // Revert optimistic update on failure
+            setOptimisticAssets(prev => {
+              const newMap = new Map(prev);
+              newMap.delete(asset._id);
+              return newMap;
+            });
+          }
+        } finally {
+          setAssetLoadingStates(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(asset._id);
+            return newSet;
+          });
+        }
+      }
+    }, 500), // Longer debounce for text input
+    [selectedCategory, dispatch]
+  );
+
+  const debouncedAssetCountryChange = useCallback(
+    debounce(async (asset: AssetImage, newCountry: string) => {
+      if (selectedCategory && selectedCategory._id) {
+        setAssetLoadingStates(prev => new Set(prev).add(asset._id));
+        
+        // Optimistic update
+        setOptimisticAssets(prev => {
+          const newMap = new Map(prev);
+          newMap.set(asset._id, { ...newMap.get(asset._id), country: newCountry });
+          return newMap;
+        });
+
+        try {
+          const result = await dispatch(
+            updateCategoryAssetThunk({
+              id: selectedCategory._id,
+              data: {
+                assetId: asset._id,
+                country: newCountry.trim(),
+              },
+            })
+          );
+
+          if (updateCategoryAssetThunk.fulfilled.match(result)) {
+            // Clear optimistic update on success
+            setOptimisticAssets(prev => {
+              const newMap = new Map(prev);
+              newMap.delete(asset._id);
+              return newMap;
+            });
+            
+            // Refresh categories to get updated asset data
+            dispatch(getCategoryThunk(undefined));
+          } else {
+            // Revert optimistic update on failure
+            setOptimisticAssets(prev => {
+              const newMap = new Map(prev);
+              newMap.delete(asset._id);
+              return newMap;
+            });
+          }
+        } finally {
+          setAssetLoadingStates(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(asset._id);
+            return newSet;
+          });
+        }
+      }
+    }, 300),
+    [selectedCategory, dispatch]
+  );
+
+  const handleBulkCountryChange = async (newCountry: string) => {
+    if (selectedCategory && selectedCategory._id && selectedAssets.length > 0) {
+      // Update each selected asset sequentially
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const assetId of selectedAssets) {
+        try {
+          const result = await dispatch(
+            updateCategoryAssetThunk({
+              id: selectedCategory._id,
+              data: {
+                assetId: assetId,
+                country: newCountry.trim(),
+              },
+            })
+          );
+
+          if (updateCategoryAssetThunk.fulfilled.match(result)) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (error) {
+          console.error("Error updating asset country:", error);
+          failCount++;
+        }
+      }
+
+      // Show success/error messages
+      if (successCount > 0) {
+        toast.success(
+          `Successfully updated country for ${successCount} asset(s)${
+            failCount > 0 ? `. ${failCount} failed.` : ""
+          }`
+        );
+        // Refresh categories after bulk update
+        dispatch(getCategoryThunk(undefined));
+      } else if (failCount > 0) {
+        toast.error(`Failed to update country for ${failCount} asset(s)`);
+      }
+    }
+  };
+
+  // Memoized assets with optimistic updates
+  const enhancedAssets = useMemo(() => {
+    if (!selectedCategory?.images) return [];
+    return selectedCategory.images.map(asset => {
+      const optimisticUpdate = optimisticAssets.get(asset._id);
+      return optimisticUpdate ? { ...asset, ...optimisticUpdate } : asset;
+    });
+  }, [selectedCategory?.images, optimisticAssets]);
+
+  const handleAssetPremiumToggle = async (asset: AssetImage) => {
+    debouncedAssetPremiumToggle(asset, !asset.isPremium);
+  };
+
+  const handleAssetImageCountChange = async (
+    asset: AssetImage,
+    newCount: number
+  ) => {
+    debouncedAssetImageCountChange(asset, newCount);
+  };
+
+  const handleAssetPromptChange = async (
+    asset: AssetImage,
+    newPrompt: string
+  ) => {
+    debouncedAssetPromptChange(asset, newPrompt);
+  };
+
+  const handleAssetCountryChange = async (
+    asset: AssetImage,
+    newCountry: string
+  ) => {
+    debouncedAssetCountryChange(asset, newCountry);
+  };
+
+  const handleAssetReorder = async (oldIndex: number, newIndex: number) => {
+    if (!selectedCategory || !selectedCategory._id) return;
+
+    // Create a copy of assets and reorder them
+    const reorderedAssets = [...enhancedAssets];
+    const [movedAsset] = reorderedAssets.splice(oldIndex, 1);
+    reorderedAssets.splice(newIndex, 0, movedAsset);
+
+    // Create the API payload with updated order values
+    const assetsPayload = reorderedAssets.map((asset, index) => ({
+      assetId: asset._id,
+      order: index + 1, // API order starts from 1
+    }));
+
+    try {
+      await dispatch(
+        reorderCategoryAssetsThunk({
+          id: selectedCategory._id,
+          assets: assetsPayload,
+        })
+      );
+      
+      // Refresh categories to get the updated order from server
+      dispatch(getCategoryThunk(undefined));
+    } catch (error) {
+      console.error("Error reordering assets:", error);
+    }
   };
 
   // Update selectedCategory when categories changes
@@ -622,126 +1935,64 @@ const Categories: React.FC = () => {
         return;
       }
 
-      const formData = new FormData();
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const img of imagesWithFiles) {
+        try {
+          // Create FormData for each image with its prompt and country
+          const formDataToSend = new FormData();
+          formDataToSend.append("asset_images", img.file!);
+          if (img.prompt && img.prompt.trim()) {
+            formDataToSend.append("prompt", img.prompt.trim());
+          }
+          // Use image's country (which may have been set by common country dropdown)
+          if (img.country && img.country.trim()) {
+            formDataToSend.append("country", img.country.trim());
+          }
+
+          // Call API for each image sequentially
+          const result = await dispatch(
+            uploadCategoryAssetsThunk({
+              id: selectedCategory._id,
+              data: formDataToSend,
+            })
+          );
+
+          if (uploadCategoryAssetsThunk.fulfilled.match(result)) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (error) {
+          console.error("Error uploading image:", error);
+          failCount++;
+        }
+      }
+
+      // Show success/error messages
+      if (successCount > 0) {
+        toast.success(
+          `Successfully uploaded ${successCount} image(s)${
+            failCount > 0 ? `. ${failCount} failed.` : ""
+          }`
+        );
+      } else if (failCount > 0) {
+        toast.error(`Failed to upload ${failCount} image(s)`);
+      }
+
+      // Refresh categories to get updated assets
+      if (successCount > 0) {
+        dispatch(getCategoryThunk(undefined));
+      }
       
-      // Append all files and metadata
-      // Backend expects:
-      // - asset_images: File[] (multiple files)
-      // - prompt: string (comma separated or multiple values, checking API requirement)
-      // - country: string (comma separated or multiple values)
-      
-      // Based on typical multer array handling:
-      imagesWithFiles.forEach((img) => {
-        if (img.file) {
-          formData.append('asset_images', img.file);
-          formData.append('prompt', img.prompt || '');
-          formData.append('country', img.country || '');
+      // Clean up preview URLs
+      newImages.forEach((img) => {
+        if (img.preview) {
+          URL.revokeObjectURL(img.preview);
         }
       });
-
-      const result = await dispatch(
-        uploadCategoryAssetsThunk({
-          id: selectedCategory._id,
-          data: formData,
-        })
-      );
-      
-      if (uploadCategoryAssetsThunk.fulfilled.match(result)) {
-        // Refresh categories to get updated assets
-        dispatch(getCategoryThunk(undefined));
-        
-        // Clean up preview URLs
-        newImages.forEach((img) => {
-          if (img.preview) {
-            URL.revokeObjectURL(img.preview);
-          }
-        });
-        setNewImages([]);
-      }
-    }
-  };
-
-  const handleAssetPremiumToggle = async (asset: AssetImage) => {
-    if (selectedCategory && selectedCategory._id) {
-      const result = await dispatch(
-        updateCategoryAssetThunk({
-          id: selectedCategory._id,
-          data: {
-            assetId: asset._id,
-            isPremium: !asset.isPremium,
-          },
-        })
-      );
-      if (updateCategoryAssetThunk.fulfilled.match(result)) {
-        // Refresh categories list to get updated asset data
-        dispatch(getCategoryThunk(undefined));
-      }
-    }
-  };
-
-  const handleAssetImageCountChange = async (
-    asset: AssetImage,
-    newCount: number
-  ) => {
-    if (selectedCategory && selectedCategory._id && newCount > 0) {
-      const result = await dispatch(
-        updateCategoryAssetThunk({
-          id: selectedCategory._id,
-          data: {
-            assetId: asset._id,
-            imageCount: newCount,
-          },
-        })
-      );
-      if (updateCategoryAssetThunk.fulfilled.match(result)) {
-        // Refresh categories list to get updated asset data
-        dispatch(getCategoryThunk(undefined));
-        setEditingAsset(null);
-      }
-    }
-  };
-
-  const handleAssetPromptChange = async (
-    asset: AssetImage,
-    newPrompt: string
-  ) => {
-    if (selectedCategory && selectedCategory._id) {
-      const result = await dispatch(
-        updateCategoryAssetThunk({
-          id: selectedCategory._id,
-          data: {
-            assetId: asset._id,
-            prompt: newPrompt,
-          },
-        })
-      );
-      if (updateCategoryAssetThunk.fulfilled.match(result)) {
-        // Refresh categories list to get updated asset data
-        dispatch(getCategoryThunk(undefined));
-        setEditingAsset(null);
-      }
-    }
-  };
-
-  const handleAssetCountryChange = async (
-    asset: AssetImage,
-    newCountry: string
-  ) => {
-    if (selectedCategory && selectedCategory._id) {
-      const result = await dispatch(
-        updateCategoryAssetThunk({
-          id: selectedCategory._id,
-          data: {
-            assetId: asset._id,
-            country: newCountry,
-          },
-        })
-      );
-      if (updateCategoryAssetThunk.fulfilled.match(result)) {
-        // Refresh categories list to get updated asset data
-        dispatch(getCategoryThunk(undefined));
-        setEditingAsset(null);
-      }
+      setNewImages([]);
     }
   };
 
@@ -757,19 +2008,52 @@ const Categories: React.FC = () => {
 
   const confirmDeleteImage = async () => {
     if (deleteImage) {
-      // TODO: Implement when category asset API is available
-      toast.error('Category asset delete API not yet implemented');
-      // When API is available, uncomment and implement:
-      // const result = await dispatch(
-      //   deleteCategoryAssetThunk({
-      //     id: deleteImage.categoryId,
-      //     imageUrl: deleteImage.assetId,
-      //   })
-      // );
-      // if (deleteCategoryAssetThunk.fulfilled.match(result)) {
-      //   dispatch(getCategoryThunk(undefined));
-      //   setDeleteImage(null);
-      // }
+      const assetIds = deleteImage.assetId.split(",");
+      const isBulkDelete = assetIds.length > 1;
+
+      if (isBulkDelete) {
+        // For bulk delete, delete multiple assets
+        const deletePromises = assetIds.map((assetId) =>
+          dispatch(
+            deleteCategoryAssetThunk({
+              id: deleteImage.categoryId,
+              imageUrl: assetId.trim(),
+            })
+          )
+        );
+
+        const results = await Promise.all(deletePromises);
+        const successCount = results.filter(
+          (result) => deleteCategoryAssetThunk.fulfilled.match(result)
+        ).length;
+
+        if (successCount > 0) {
+          toast.success(
+            `Successfully deleted ${successCount} of ${assetIds.length} asset(s)`
+          );
+          // Refresh categories to get updated data
+          await dispatch(getCategoryThunk(undefined));
+          // Clear selected assets
+          setSelectedAssets([]);
+        }
+      } else {
+        // Single asset delete
+        const result = await dispatch(
+          deleteCategoryAssetThunk({
+            id: deleteImage.categoryId,
+            imageUrl: deleteImage.assetId,
+          })
+        );
+
+        if (deleteCategoryAssetThunk.fulfilled.match(result)) {
+          // Refresh categories to get updated data
+          await dispatch(getCategoryThunk(undefined));
+          // Clear selected assets if this was a selected asset
+          setSelectedAssets(prev => prev.filter(id => id !== deleteImage.assetId));
+        }
+      }
+      // Close dialog
+      setDeleteImage(null);
     }
   };
 
@@ -1235,14 +2519,11 @@ const Categories: React.FC = () => {
                 <Label htmlFor="country" className="text-sm font-semibold">
                   Country
                 </Label>
-                <Input
-                  id="country"
-                  name="country"
+                <CountrySelect
                   value={formik.values.country || ''}
-                  onChange={formik.handleChange}
-                  onBlur={formik.handleBlur}
-                  placeholder="Enter country "
-                  className="h-11"
+                  onValueChange={(value) => formik.setFieldValue('country', value)}
+                  placeholder="Select country"
+                  triggerClassName="h-11"
                 />
               </div>
               <div className="space-y-2">
@@ -1643,7 +2924,7 @@ const Categories: React.FC = () => {
           }
         }}
       >
-        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-6xl max-h-[95vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold break-words">
               Manage Images - {selectedCategory?.name}
@@ -1653,11 +2934,16 @@ const Categories: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6 mt-4">
+          <div className="space-y-8 mt-6">
             {/* Add New Images Section */}
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold">Add New Images</Label>
+            <div className="space-y-6 p-6 border-2 border-dashed border-border rounded-xl bg-muted/20">
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                    <Upload className="w-4 h-4 text-primary" />
+                  </div>
+                  <Label className="text-lg font-semibold text-foreground">Add New Images</Label>
+                </div>
 
                 {/* File Upload Option */}
                 <div className="space-y-2">
@@ -1673,10 +2959,10 @@ const Categories: React.FC = () => {
                     type="button"
                     variant="outline"
                     onClick={() => imageFileInputRef.current?.click()}
-                    className="w-full h-11 border-2 border-dashed hover:border-primary transition-colors"
+                    className="w-full h-14 border-2 border-dashed hover:border-primary hover:bg-primary/5 transition-all duration-200 group"
                   >
-                    <Upload className="w-4 h-4 mr-2 flex-shrink-0" />
-                    <span>Upload Image Files</span>
+                    <Upload className="w-5 h-5 mr-3 flex-shrink-0 text-muted-foreground group-hover:text-primary transition-colors" />
+                    <span className="text-base font-medium">Upload Image Files</span>
                   </Button>
                 </div>
               </div>
@@ -1684,9 +2970,32 @@ const Categories: React.FC = () => {
               {/* New Images Preview */}
               {newImages.length > 0 && (
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold">
-                    New Images ({newImages.length})
-                  </Label>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <Label className="text-sm font-semibold">
+                      New Images ({newImages.length})
+                    </Label>
+                    {/* Common Country Dropdown for All Images */}
+                    <div className="flex items-center gap-2">
+                      <Label className="text-sm text-muted-foreground whitespace-nowrap">
+                        Country for All:
+                      </Label>
+                      <CountrySelect
+                        value={commonCountryForNewImages}
+                        onValueChange={(value) => {
+                          setCommonCountryForNewImages(value);
+                          // Apply common country to all images
+                          setNewImages((prev) =>
+                            prev.map((img) => ({
+                              ...img,
+                              country: value, // Apply to all images
+                            }))
+                          );
+                        }}
+                        placeholder="Select country for all..."
+                        triggerClassName="h-9 w-[200px]"
+                      />
+                    </div>
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto p-2 border rounded-lg bg-muted/30">
                     {newImages.map((img, idx) => (
                       <div key={idx} className="relative group space-y-2">
@@ -1748,21 +3057,12 @@ const Categories: React.FC = () => {
                           <Label className="text-xs font-medium text-muted-foreground">
                             Country (Optional)
                           </Label>
-                          <Select
+                          <CountrySelect
                             value={img.country || ''}
                             onValueChange={(value) => handleUpdateImageCountry(idx, value)}
-                          >
-                            <SelectTrigger className="h-9 w-full text-sm">
-                              <SelectValue placeholder="Select Country" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Object.entries(COUNTRY_LIST).map(([name, code]) => (
-                                <SelectItem key={code} value={code}>
-                                  {name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            placeholder="Select country..."
+                            triggerClassName="h-9 text-sm"
+                          />
                         </div>
                       </div>
                     ))}
@@ -1789,303 +3089,90 @@ const Categories: React.FC = () => {
               )}
             </div>
 
-            {/* Existing Images Section */}
-            <div className="space-y-4 border-t pt-4">
-              <Label className="text-sm font-semibold">
-                Assets ({(selectedCategory?.images && selectedCategory.images.length > 0) ? selectedCategory.images.length : 0})
-              </Label>
-              {selectedCategory?.images && selectedCategory.images.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto p-2">
-                  {selectedCategory.images.map((asset) => (
-                    <div
-                      key={asset._id}
-                      className="relative group border rounded-xl p-4 bg-card hover:shadow-lg transition-all duration-200 hover:border-primary/50"
-                    >
-                      {/* Delete Button - Top Right */}
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        className="absolute top-3 right-3 h-8 w-8 rounded-full shadow-lg hover:scale-110 transition-transform opacity-0 group-hover:opacity-100 z-10"
-                        onClick={() => handleDeleteImage(asset)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-
-                      {/* Image - Clickable to view full size */}
-                      <div
-                        className="relative w-full aspect-square rounded-lg overflow-hidden border border-border bg-muted mb-4 cursor-pointer hover:opacity-90 transition-opacity group/image"
-                        onClick={() =>
-                          setViewingImage({
-                            url: asset.url,
-                            assetId: asset._id,
-                          })
-                        }
-                      >
-                        <img
-                          src={asset.url}
-                          alt="Asset"
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.style.display = 'none';
-                            const parent = target.parentElement;
-                            if (parent && !parent.querySelector('.error-placeholder')) {
-                              const errorDiv = document.createElement('div');
-                              errorDiv.className = 'error-placeholder w-full h-full flex items-center justify-center text-sm text-muted-foreground bg-destructive/10';
-                              errorDiv.textContent = 'Failed to load';
-                              parent.appendChild(errorDiv);
-                            }
-                          }}
-                        />
-                        {/* URL Tooltip */}
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className="absolute inset-0" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="max-w-xs break-all text-xs">
-                                {asset.url}
-                              </p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-
-                      {/* Asset Details */}
-                      <div className="space-y-3">
-                        {/* Premium Row */}
-                        <div className="flex items-center justify-between">
-                          <Label className="text-xs font-semibold text-muted-foreground">Premium</Label>
-                          <Switch
-                            checked={asset.isPremium}
-                            onCheckedChange={() => handleAssetPremiumToggle(asset)}
-                            disabled={loading}
-                            className="scale-75"
-                          />
-                        </div>
-
-                        {/* Count Row */}
-                        <div className="space-y-1.5">
-                          <Label className="text-xs font-semibold text-muted-foreground">Count</Label>
-                          <div className="flex items-center gap-1">
-                            {editingAsset?.assetId === asset._id && editingAsset.imageCount !== undefined ? (
-                              <div className="flex items-center gap-1 w-full">
-                                <Input
-                                  type="number"
-                                  min="1"
-                                  value={editingAsset.imageCount}
-                                  onChange={(e) =>
-                                    setEditingAsset({
-                                      ...editingAsset,
-                                      imageCount: parseInt(e.target.value) || 1,
-                                    })
-                                  }
-                                  className="h-8 text-xs flex-1"
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      handleAssetImageCountChange(asset, editingAsset.imageCount);
-                                    } else if (e.key === 'Escape') {
-                                      setEditingAsset(null);
-                                    }
-                                  }}
-                                  autoFocus
-                                />
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 flex-shrink-0"
-                                  onClick={() => handleAssetImageCountChange(asset, editingAsset.imageCount)}
-                                  disabled={loading}
-                                >
-                                  <Pencil className="w-3 h-3" />
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 flex-shrink-0"
-                                  onClick={() => setEditingAsset(null)}
-                                >
-                                  <X className="w-3 h-3" />
-                                </Button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-1.5 w-full">
-                                <span className="text-xs font-medium px-2 py-1.5 bg-muted/50 rounded flex-1">
-                                  {asset.imageCount}
-                                </span>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 hover:bg-primary/10 flex-shrink-0"
-                                  onClick={() =>
-                                    setEditingAsset({
-                                      assetId: asset._id,
-                                      imageCount: asset.imageCount,
-                                      prompt: asset.prompt || '',
-                                      country: asset.country || '',
-                                    })
-                                  }
-                                >
-                                  <Pencil className="w-3 h-3" />
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Prompt Field */}
-                        <div className="space-y-1.5">
-                          <Label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
-                            Prompt
-                          </Label>
-                          {editingAsset?.assetId === asset._id && editingAsset.prompt !== undefined ? (
-                            <div className="flex items-start gap-1.5">
-                              <Textarea
-                                value={editingAsset.prompt || ''}
-                                onChange={(e) =>
-                                  setEditingAsset({
-                                    ...editingAsset,
-                                    prompt: e.target.value,
-                                  })
-                                }
-                                className="h-16 text-xs flex-1 resize-none"
-                                placeholder="Enter prompt..."
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter' && e.ctrlKey) {
-                                    handleAssetPromptChange(asset, editingAsset.prompt || '');
-                                  } else if (e.key === 'Escape') {
-                                    setEditingAsset(null);
-                                  }
-                                }}
-                              />
-                              <div className="flex flex-col gap-1">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7"
-                                  onClick={() => handleAssetPromptChange(asset, editingAsset.prompt || '')}
-                                  disabled={loading}
-                                  title="Save (Ctrl+Enter)"
-                                >
-                                  <Pencil className="w-3 h-3" />
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7"
-                                  onClick={() => setEditingAsset(null)}
-                                  title="Cancel (Esc)"
-                                >
-                                  <X className="w-3 h-3" />
-                                </Button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex items-start gap-1.5">
-                              <p className="text-xs text-foreground bg-muted/50 rounded-md px-2 py-1.5 flex-1 min-h-[2rem] line-clamp-2" title={asset.prompt || 'N/A'}>
-                                {asset.prompt || <span className="text-muted-foreground">N/A</span>}
-                              </p>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 hover:bg-primary/10 flex-shrink-0"
-                                onClick={() =>
-                                  setEditingAsset({
-                                    assetId: asset._id,
-                                    imageCount: asset.imageCount,
-                                    prompt: asset.prompt || '',
-                                    country: asset.country || '',
-                                  })
-                                }
-                              >
-                                <Pencil className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Country Field */}
-                        <div className="space-y-1.5">
-                          <Label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
-                            Country
-                          </Label>
-                          {editingAsset?.assetId === asset._id && editingAsset.country !== undefined ? (
-                            <div className="flex items-center gap-1.5">
-                              <Input
-                                type="text"
-                                value={editingAsset.country || ''}
-                                onChange={(e) =>
-                                  setEditingAsset({
-                                    ...editingAsset,
-                                    country: e.target.value,
-                                  })
-                                }
-                                className="h-8 text-xs flex-1"
-                                placeholder="Enter country code..."
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    handleAssetCountryChange(asset, editingAsset.country || '');
-                                  } else if (e.key === 'Escape') {
-                                    setEditingAsset(null);
-                                  }
-                                }}
-                              />
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => handleAssetCountryChange(asset, editingAsset.country || '')}
-                                disabled={loading}
-                              >
-                                <Pencil className="w-3 h-3" />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => setEditingAsset(null)}
-                              >
-                                <X className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs font-medium text-foreground bg-muted/50 rounded-md px-2 py-1.5 flex-1" title={asset.country || 'N/A'}>
-                                {asset.country || <span className="text-muted-foreground">N/A</span>}
-                              </span>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 hover:bg-primary/10 flex-shrink-0"
-                                onClick={() =>
-                                  setEditingAsset({
-                                    assetId: asset._id,
-                                    imageCount: asset.imageCount,
-                                    prompt: asset.prompt || '',
-                                    country: asset.country || '',
-                                  })
-                                }
-                              >
-                                <Pencil className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+            {/* Existing Assets Section */}
+            <div className="space-y-6 border-t pt-8">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                      <Images className="w-4 h-4 text-primary" />
                     </div>
-                  ))}
+                    <Label className="text-lg font-semibold text-foreground">
+                      Assets ({enhancedAssets.length})
+                    </Label>
+                  </div>
+                  {enhancedAssets.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="select-all-assets"
+                        checked={
+                          enhancedAssets.length > 0 &&
+                          selectedAssets.length === enhancedAssets.length
+                        }
+                        onCheckedChange={handleSelectAllAssets}
+                      />
+                      <Label
+                        htmlFor="select-all-assets"
+                        className="text-sm cursor-pointer"
+                      >
+                        Select All ({selectedAssets.length} selected)
+                      </Label>
+                    </div>
+                  )}
                 </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {selectedAssets.length > 0 && (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <Label className="text-sm text-muted-foreground whitespace-nowrap">
+                          Update Country:
+                        </Label>
+                        <CountrySelect
+                          value=""
+                          onValueChange={handleBulkCountryChange}
+                          placeholder="Select country..."
+                          triggerClassName="h-9 w-[200px]"
+                          showClearButton={false}
+                        />
+                      </div>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={handleBulkDeleteAssets}
+                        disabled={loading}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete Selected ({selectedAssets.length})
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+              {enhancedAssets.length > 0 ? (
+                <VirtualizedAssetGrid
+                  assets={enhancedAssets}
+                  selectedAssets={selectedAssets}
+                  onAssetSelect={handleAssetSelect}
+                  onDeleteImage={handleDeleteImage}
+                  onViewImage={(asset) =>
+                    setViewingImage({
+                      url: asset.url,
+                      assetId: asset._id,
+                    })
+                  }
+                  onPremiumToggle={handleAssetPremiumToggle}
+                  onImageCountChange={handleAssetImageCountChange}
+                  onPromptChange={handleAssetPromptChange}
+                  onCountryChange={handleAssetCountryChange}
+                  editingAsset={editingAsset}
+                  editingAssetPrompt={editingAssetPrompt}
+                  setEditingAsset={setEditingAsset}
+                  setEditingAssetPrompt={setEditingAssetPrompt}
+                  loading={assetLoadingStates.has(editingAsset?.assetId || '')}
+                  containerHeight={384}
+                  itemHeight={320}
+                  columns={3}
+                />
               ) : (
                 <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
                   <Images className="w-12 h-12 mx-auto mb-2 opacity-50" />
@@ -2097,7 +3184,7 @@ const Categories: React.FC = () => {
 
             {/* Empty State - Only show if no new images and no existing images */}
             {newImages.length === 0 &&
-              (!selectedCategory?.images || selectedCategory.images.length === 0) && (
+              enhancedAssets.length === 0 && (
                 <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-lg">
                   <Images className="w-16 h-16 mx-auto mb-3 opacity-50" />
                   <p className="font-medium">No images added yet</p>
@@ -2156,7 +3243,16 @@ const Categories: React.FC = () => {
 
       {/* Full Size Image Viewer Dialog */}
       <Dialog open={!!viewingImage} onOpenChange={() => setViewingImage(null)}>
-        <DialogContent className="sm:max-w-4xl max-w-[95vw] max-h-[95vh] p-0 bg-black/95 border-none">
+        <DialogContent className="sm:max-w-6xl max-h-[95vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold break-words">
+              Manage Images - {selectedCategory?.name}
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              Add or remove images for this category. You can upload files or
+              add image URLs.
+            </DialogDescription>
+          </DialogHeader>
           <div className="relative w-full h-full flex items-center justify-center min-h-[400px]">
             {/* Close Button */}
             <Button

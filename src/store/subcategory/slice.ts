@@ -27,6 +27,10 @@ const initialState = {
   assets: [] as any[],
   assetsPagination: {} as any,
   assetsLoading: false,
+  // Cache management
+  lastFetchTime: null as number | null,
+  cacheExpiry: 5 * 60 * 1000, // 5 minutes
+  isDataStale: true,
 };
 
 const slice = createSlice({
@@ -38,6 +42,14 @@ const slice = createSlice({
     },
     clearSubCategoryData: (state) => {
       state.data = [];
+      state.isDataStale = true;
+    },
+    invalidateCache: (state) => {
+      state.isDataStale = true;
+    },
+    updateCacheTimestamp: (state) => {
+      state.lastFetchTime = Date.now();
+      state.isDataStale = false;
     },
   },
   extraReducers: (builder) => {
@@ -53,6 +65,9 @@ const slice = createSlice({
       state.error = null;
       state.data = action.payload.data || [];
       state.paginationData = action.payload.pagination || {};
+      // Update cache timestamp when data is fetched
+      state.lastFetchTime = Date.now();
+      state.isDataStale = false;
     });
     builder.addCase(getSubCategoryThunk.rejected, (state, action) => {
       state.dataLoading = false;
@@ -308,6 +323,6 @@ const slice = createSlice({
       },
 });
 
-export const { clearSubCategorySingleData, clearSubCategoryData } =
+export const { clearSubCategorySingleData, clearSubCategoryData, invalidateCache, updateCacheTimestamp } =
   slice.actions;
 export default slice.reducer;

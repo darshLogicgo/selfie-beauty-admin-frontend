@@ -23,6 +23,10 @@ const initialState = {
   error: null as string | null,
   titles: [] as Array<{ _id: string; name: string }>,
   titlesLoading: false,
+  // Cache management
+  lastFetchTime: null as number | null,
+  cacheExpiry: 5 * 60 * 1000, // 5 minutes
+  isDataStale: true,
 };
 
 const slice = createSlice({
@@ -34,6 +38,14 @@ const slice = createSlice({
     },
     clearCategoryData: (state) => {
       state.data = [];
+      state.isDataStale = true;
+    },
+    invalidateCache: (state) => {
+      state.isDataStale = true;
+    },
+    updateCacheTimestamp: (state) => {
+      state.lastFetchTime = Date.now();
+      state.isDataStale = false;
     },
   },
   extraReducers: (builder) => {
@@ -50,6 +62,8 @@ const slice = createSlice({
       if (action.payload.data) {
         state.data.push(action.payload.data);
       }
+      // Invalidate cache when new data is added
+      state.isDataStale = true;
     });
     builder.addCase(createCategoryThunk.rejected, (state, action) => {
       state.loading = false;
@@ -75,6 +89,8 @@ const slice = createSlice({
           state.data[index] = action.payload.data;
         }
       }
+      // Update cache timestamp when data is updated
+      state.lastFetchTime = Date.now();
     });
     builder.addCase(updateCategoryThunk.rejected, (state, action) => {
       state.loading = false;
@@ -94,6 +110,9 @@ const slice = createSlice({
       state.error = null;
       state.data = action.payload.data || [];
       state.paginationData = action.payload.pagination || {};
+      // Update cache timestamp when data is fetched
+      state.lastFetchTime = Date.now();
+      state.isDataStale = false;
     });
     builder.addCase(getCategoryThunk.rejected, (state, action) => {
       state.dataLoading = false;
@@ -116,6 +135,8 @@ const slice = createSlice({
           (item) => item._id !== action.payload.data._id
         );
       }
+      // Invalidate cache when data is deleted
+      state.isDataStale = true;
     });
     builder.addCase(deleteCategoryThunk.rejected, (state, action) => {
       state.loading = false;
@@ -249,5 +270,5 @@ const slice = createSlice({
   },
 });
 
-export const { clearCategorySingleData, clearCategoryData } = slice.actions;
+export const { clearCategorySingleData, clearCategoryData, invalidateCache, updateCacheTimestamp } = slice.actions;
 export default slice.reducer;

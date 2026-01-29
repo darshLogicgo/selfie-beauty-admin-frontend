@@ -8,6 +8,10 @@ import {
 interface HomeData {
   section1: any[];
   section2: any[];
+  customSection?: {
+    title: string;
+    categories: any[];
+  };
   section3: any[];
   section4: any[];
   section5: any[];
@@ -27,6 +31,10 @@ const initialState = {
   data: {
     section1: [] as any[],
     section2: [] as any[],
+    customSection: {
+      title: "",
+      categories: [] as any[],
+    },
     section3: [] as any[],
     section4: [] as any[],
     section5: [] as any[],
@@ -53,6 +61,10 @@ const slice = createSlice({
       state.data = {
         section1: [],
         section2: [],
+        customSection: {
+          title: "",
+          categories: [],
+        },
         section3: [],
         section4: [],
         section5: [],
@@ -175,6 +187,15 @@ const slice = createSlice({
         updateItemInArray(state.data.section6.categories, "isSection7");
         updateItemInArray(state.data.section7.categories, "isSection7");
       }
+
+      // Update in custom section (categories)
+      if (section === "custom") {
+        updateItemInArray(state.data.section1, "isCustomSection");
+        updateItemInArray(state.data.section2, "isCustomSection");
+        updateItemInArray(state.data.customSection.categories, "isCustomSection");
+        updateItemInArray(state.data.section6.categories, "isCustomSection");
+        updateItemInArray(state.data.section7.categories, "isCustomSection");
+      }
     },
   },
   extraReducers: (builder) => {
@@ -192,6 +213,10 @@ const slice = createSlice({
         state.data = {
           section1: action.payload.data.section1 || [],
           section2: action.payload.data.section2 || [],
+          customSection: action.payload.data.customSection || {
+            title: "",
+            categories: [],
+          },
           section3: action.payload.data.section3 || [],
           section4: action.payload.data.section4 || [],
           section5: action.payload.data.section5 || [],
