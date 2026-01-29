@@ -732,7 +732,7 @@ export const getLiveStatus = async (
   if (endDate) queryParams.endDate = endDate;
 
   const queryString = new URLSearchParams(queryParams).toString();
-  const fullUrl = `${LIVE_STATUS_BASE_URL}/live-status${
+  const fullUrl = `${LIVE_STATUS_BASE_URL}live-status${
     queryString ? `?${queryString}` : ""
   }`;
 
